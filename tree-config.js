@@ -169,11 +169,42 @@
         growthRadius: 0.18,
         enabled: true
       },
+      /* ---------------------- V2 — GROWTH HALO (Katman 5) ------------------
+         Tek master growth katmanı. 6 ayrı garden instance YOKTUR.
+         İlk geçerli pollenDrop event'iyle bir kez başlar, son karede tutulur.
+
+         Atlas: A01_growth_master.mp4'ün 0–132. kareleri (24 fps) üçer üçer
+         alınıp 45 kareye indirildi (8 fps ≈ 5.6 sn). 132. kareden sonrası
+         kullanılmadı: o noktada bahçe geometrisi tamamlanıyor, sonraki
+         karelerde Kling'in bloom'u kaynağın RGB'sini yıkıyor.
+
+         GEOMETRİ NOTU: dikey ön-kısaltma (0.70) atlasa PİŞİRİLMİŞTİR.
+         Hücre oranı 192/336 = 0.5714. Bu yüzden height = width * 0.5714
+         olduğunda görüntü doğru orandadır. Sadece width değiştirirseniz
+         height'ı da aynı oranla güncelleyin, aksi hâlde bahçe deforme olur. */
       dioramaPreset: {
-        /* V2 için ayrılmış alan. Henüz uygulanmadı. */
+        implemented: true,
+        type: 'growth-video-atlas',
         style: 'papercraft-spring',
-        widthFactor: 1.6,      // standart §7: 1.4–1.8 target genişliği
-        implemented: false
+        trigger: 'first-pollen-drop',
+
+        asset: 'assets/A01_growth_atlas.png',
+        atlas: { cols: 7, rows: 7, cellW: 336, cellH: 192, count: 45, fps: 8 },
+
+        /* Target'a bağlı yerleşim. Bahçe eserin ALT kenarından dışarı büyür;
+           ana gövde ve mevcut çiçekler kapanmaz (görev tanımı §3).
+           width 1.45 = standart §7'deki 1.4–1.8 target genişliği aralığında. */
+        transform: {
+          x: 0.00,
+          y: -0.62,          // merkez; düzlem alt kenarı ≈ -1.03 (target dışı, bilinçli)
+          z: 0.030,          // ağaç videosunun (z=0) önünde, arıların altında
+          width: 1.45,
+          height: 0.8286     // = 1.45 * 0.5714 (hücre oranı)
+        },
+        renderOrder: 8,      // arılar 10+, ağaç videosu 0
+        fadeIn: 0.35,
+        hold: true,          // son karede tutulur, loop yok
+        widthFactor: 1.45
       },
       audio: {
         /* V2 için ayrılmış alan. Henüz uygulanmadı (standart §13). */

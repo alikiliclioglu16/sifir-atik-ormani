@@ -1,6 +1,6 @@
 /* =============================================================================
    SIFIR ATIK ORMANI — A01 "Kapak Çiçek Ağacı" WebAR
-   Sürüm: 5.0.0  (production) — V1 ağaç katmanı + V1.5 imza hayvanı (arı) katmanı
+   Sürüm: 6.0.0  (production) — V1 ağaç + V1.5 imza hayvanı (arı) + V2 Growth Halo
 
    Mimari kararlar:
    - Runtime MindAR Compiler KULLANILMAZ. Önceden derlenmiş assets/targets.mind okunur.
@@ -14,6 +14,9 @@
    - V1.5 arı katmanı MODÜLERDİR: tree-config.js (veri) + bee-layer.js (motor).
      Arı atlası yüklenemezse katman sessizce devre dışı kalır ve V1 ağaç
      deneyimi hiç etkilenmeden çalışmaya devam eder (regresyon koruması).
+   - V2 Growth Halo katmanı da modülerdir: growth-layer.js. İlk geçerli
+     pollenDrop event'iyle BİR KEZ başlar. Atlası yüklenemezse V1 + V1.5
+     aynen çalışmaya devam eder.
    ============================================================================= */
 
 (function () {
@@ -22,7 +25,7 @@
   /* ---------------------------------------------------------------- AYARLAR */
 
   var CFG = {
-    version: '5.0.0',
+    version: '6.0.0',
     treeId: 'A01',
 
     // Kütüphaneler — sırayla denenir, ilki başarısız olursa ikincisi yüklenir.
@@ -93,6 +96,8 @@
   var arSystem = null;
   var beeLayer = null;      // V1.5 imza hayvanı katmanı (yoksa null)
   var beeReady = null;      // atlas yükleme Promise'i (bileşen init'inde kurulur)
+  var growthLayer = null;   // V2 Growth Halo katmanı (yoksa null)
+  var growthReady = null;   // growth atlası yükleme Promise'i
   var readyTimer = null;
   var slowTimer = null;
 
@@ -129,7 +134,9 @@
       'MINDAR: ' + (window.MINDAR && window.MINDAR.IMAGE ? 'yüklendi' : 'yüklenmedi'),
       'tree-config: ' + (window.TREE_CONFIG ? 'v' + window.TREE_CONFIG_VERSION : 'YOK'),
       'bee-layer: ' + (window.A01BeeLayer ? 'v' + window.A01BeeLayer.version : 'YOK'),
-      'beeLayer aktif: ' + (beeLayer && beeLayer.isReady() ? 'evet' : 'hayır')
+      'beeLayer aktif: ' + (beeLayer && beeLayer.isReady() ? 'evet' : 'hayır'),
+      'growth-layer: ' + (window.A01GrowthLayer ? 'v' + window.A01GrowthLayer.version : 'YOK'),
+      'growthLayer aktif: ' + (growthLayer && growthLayer.isReady() ? 'evet' : 'hayır')
     ].join('\n');
   }
 
@@ -303,7 +310,17 @@
             beeLayer = window.A01BeeLayer.create(THREE, treeCfg, this.el.object3D, {
               el: this.el,
               log: log,
-              onPollenDrop: function (d) { log('V2 kancası hazır → ' + d.bee); }
+              onPollenDrop: function (d) {
+                /* ---- V2 TETİKLEYİCİ ----
+                   Growth animasyonu YALNIZCA ilk geçerli pollenDrop ile başlar.
+                   B2–B6'dan gelen sonraki eventler burada da, growth-layer'ın
+                   kendi `started` bayrağında da olmak üzere İKİ KEZ engellenir. */
+                if (growthLayer && !growthLayer.isStarted()) {
+                  growthLayer.start('pollenDrop:' + d.bee);
+                } else {
+                  log('pollenDrop ' + d.bee + ' — growth zaten başlamış, yok sayıldı');
+                }
+              }
             });
             // Atlas yüklemesi burada başlar; boot zinciri beeReady'yi bekler.
             // Böylece bileşenin ne zaman init olduğuna bağımlılık kalmaz.
@@ -327,6 +344,36 @@
           log('Arı katmanı yok (tree-config veya bee-layer yüklenmedi) — V1 devam ediyor');
         }
 
+        /* ---- V2: Growth Halo katmanı ----
+           Aynı target object3D'sine bağlanır; tüm koordinatlar target'a bağlıdır. */
+        if (window.A01GrowthLayer && treeCfg && treeCfg.dioramaPreset && treeCfg.dioramaPreset.implemented) {
+          try {
+            growthLayer = window.A01GrowthLayer.create(THREE, treeCfg, this.el.object3D, {
+              log: log,
+              onGrowthComplete: function () { log('V2 final garden görünümüne ulaşıldı'); }
+            });
+          } catch (e) {
+            growthLayer = null;
+            log('Growth katmanı kurulamadı, V1+V1.5 devam ediyor: ' + e.message);
+          }
+          if (growthLayer) {
+            growthReady = new Promise(function (res) {
+              var done = false;
+              var to = setTimeout(function () {
+                if (done) return; done = true;
+                log('Growth atlası zaman aşımı — V1+V1.5 ile devam');
+                growthLayer = null; res();
+              }, 25000);
+              growthLayer.load(
+                function () { if (!done) { done = true; clearTimeout(to); res(); } },
+                function () { if (!done) { done = true; clearTimeout(to); growthLayer = null; res(); } }
+              );
+            });
+          }
+        } else {
+          log('Growth katmanı yok veya implemented=false — V1+V1.5 devam ediyor');
+        }
+
         /* ---- HEDEF BULUNDU ---- */
         this.el.addEventListener('targetFound', function () {
           state.targetVisible = true;
@@ -335,6 +382,8 @@
 
           // V1.5 katmanı sıfırdan başlar; önceki state/timer kalıntısı kalmaz
           if (beeLayer && beeLayer.isReady()) beeLayer.restart();
+          // V2 temiz başlangıç state'i: görünmez, 0. karede bekler
+          if (growthLayer) growthLayer.reset();
 
           try { video.currentTime = 0; } catch (e) { log('currentTime=0 hatası: ' + e); }
 
@@ -364,6 +413,7 @@
           self.mesh.visible = false;
           // V1.5 katmanı da durur ve gizlenir; timer/animasyon birikmez
           if (beeLayer) beeLayer.stop();
+          if (growthLayer) growthLayer.stop();   // durdur + gizle + growthStarted=false
           if (!state.needsTapToPlay) setHud('A01 ağacını tekrar kadraja alın…');
         });
       },
@@ -376,11 +426,16 @@
           if (this.mesh.visible !== shouldShow) this.mesh.visible = shouldShow;
         }
         // V1.5 arı katmanı yalnızca target görünürken ilerler
-        if (beeLayer && state.targetVisible) beeLayer.update((timeDelta || 16.7) / 1000);
+        if (state.targetVisible) {
+          var dtSec = (timeDelta || 16.7) / 1000;
+          if (beeLayer) beeLayer.update(dtSec);
+          if (growthLayer) growthLayer.update(dtSec);
+        }
       },
 
       remove: function () {
         if (beeLayer) { beeLayer.dispose(); beeLayer = null; }
+        if (growthLayer) { growthLayer.dispose(); growthLayer = null; }
         if (this.tex) this.tex.dispose();
         if (this.mesh) {
           this.mesh.geometry.dispose();
@@ -636,6 +691,11 @@
         if (!beeReady) return;
         setLaunchStatus('Arı katmanı yükleniyor…');
         return beeReady;
+      })
+      .then(function () {
+        if (!growthReady) return;
+        setLaunchStatus('Growth Halo yükleniyor…');
+        return growthReady;
       })
       .then(function () {
         // Videoyu arka planda ön belleğe almaya çalış
