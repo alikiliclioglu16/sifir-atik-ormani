@@ -2,39 +2,88 @@
 <html lang="tr">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover, user-scalable=no" />
   <meta name="theme-color" content="#0b3d2e" />
-  <title>A01 — Kapak Çiçek Ağacı | WebAR Pilot</title>
-  <link rel="stylesheet" href="./style.css" />
+  <meta name="format-detection" content="telephone=no" />
+  <meta name="referrer" content="strict-origin-when-cross-origin" />
+  <meta name="description" content="Dünyanın Sıfır Atık Ormanı — A01 Kapak Çiçek Ağacı artırılmış gerçeklik deneyimi. Uygulama indirmeden çalışır." />
+  <title>A01 — Kapak Çiçek Ağacı | Sıfır Atık Ormanı AR</title>
 
-  <!-- MindAR official distribution + A-Frame. Internet access is required on first load. -->
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
-  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+  <link rel="stylesheet" href="style.css" />
+  <link rel="preload" as="image" href="assets/A01_poster.jpg" />
+  <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
+  <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
 </head>
 <body>
+
+  <!-- ============ AR SAHNESİ KAPSAYICISI (JS tarafından doldurulur) ============ -->
+  <div id="arRoot" aria-hidden="true"></div>
+
+  <!-- ============ KLING VIDEOSU ============
+       iOS Safari notu: video elementi DOM'da ve display:none OLMADAN durmalıdır,
+       aksi hâlde WebGL dokusuna kare beslemesi durabilir. -->
+  <video
+    id="a01Video"
+    class="offscreen-video"
+    src="assets/A01_kling_12s_web.mp4"
+    poster="assets/A01_poster.jpg"
+    preload="auto"
+    loop
+    muted
+    playsinline
+    webkit-playsinline
+    disablepictureinpicture
+    disableremoteplayback
+    tabindex="-1"
+    aria-hidden="true"></video>
+
+  <!-- ============ AÇILIŞ EKRANI ============ -->
   <main id="launch" class="launch">
     <section class="card">
-      <div class="eyebrow">DÜNYANIN SIFIR ATIK ORMANI</div>
+      <p class="eyebrow">DÜNYANIN SIFIR ATIK ORMANI</p>
       <h1>Kapak Çiçek Ağacı</h1>
-      <p class="code">A01 · WebAR Pilot</p>
-      <img class="thumb" src="./assets/A01_master.png" alt="Kapak Çiçek Ağacı" />
-      <p class="instructions">AR başladıktan sonra kamerayı A01 görselinin tamamını görecek şekilde esere yöneltin.</p>
-      <button id="startButton" type="button">AR'yi Başlat</button>
-      <p id="launchStatus" class="status">Hazır</p>
+      <p class="code">A01 · Artırılmış Gerçeklik</p>
+
+      <img class="thumb" src="assets/A01_poster.jpg" width="720" height="1080"
+           alt="A01 Kapak Çiçek Ağacı eseri" />
+
+      <p class="instructions">
+        Butona dokunun, kamera izni verin ve telefonu
+        <strong>A01 eserinin tamamını görecek şekilde</strong> tutun.
+        Ağaç canlanacak.
+      </p>
+
+      <button id="startButton" type="button" disabled>Hazırlanıyor…</button>
+      <p id="launchStatus" class="status" role="status" aria-live="polite">Başlatılıyor…</p>
+
+      <p class="mini">Uygulama indirmenize gerek yok · Kamera görüntüsü kaydedilmez</p>
     </section>
   </main>
 
-  <div id="hud" class="hud hidden" aria-live="polite">
+  <!-- ============ TARAMA EKRANI (HUD) ============ -->
+  <div id="hud" class="hud hidden">
     <div class="scan-frame" aria-hidden="true">
       <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
     </div>
-    <div id="hudStatus" class="hud-status">A01 ağacını bulun…</div>
+    <p id="hudStatus" class="hud-status" role="status" aria-live="polite">Kamera başlatılıyor…</p>
     <button id="exitButton" class="exit" type="button" aria-label="AR deneyimini kapat">×</button>
   </div>
 
-  <div id="arRoot"></div>
+  <!-- ============ HATA / BİLGİ PANELİ ============ -->
+  <div id="errorPanel" class="error-panel hidden" role="alertdialog" aria-modal="true">
+    <div class="error-card">
+      <div class="error-icon" aria-hidden="true">!</div>
+      <h2 id="errorTitle">Bir sorun oluştu</h2>
+      <p id="errorText">Lütfen tekrar deneyin.</p>
+      <button id="errorRetry" class="btn-primary" type="button">Tekrar Dene</button>
+      <button id="errorDetailsToggle" class="btn-ghost" type="button">Teknik detayları göster</button>
+      <pre id="errorDetails" class="error-details hidden"></pre>
+    </div>
+  </div>
 
-  <script src="./app.js"></script>
+  <!-- ============ DEBUG LOG (?debug=1) ============ -->
+  <pre id="debugPanel" class="debug-panel hidden"></pre>
+
+  <script src="app.js"></script>
 </body>
 </html>
