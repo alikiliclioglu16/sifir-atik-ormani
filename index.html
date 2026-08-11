@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0b3d2e" />
+  <title>A01 — Kapak Çiçek Ağacı | WebAR Pilot</title>
+  <link rel="stylesheet" href="./style.css" />
+
+  <!-- MindAR official distribution + A-Frame. Internet access is required on first load. -->
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image.prod.js"></script>
+  <script src="https://aframe.io/releases/1.6.0/aframe.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js"></script>
+</head>
+<body>
+  <main id="launch" class="launch">
+    <section class="card">
+      <div class="eyebrow">DÜNYANIN SIFIR ATIK ORMANI</div>
+      <h1>Kapak Çiçek Ağacı</h1>
+      <p class="code">A01 · WebAR Pilot</p>
+      <img class="thumb" src="./assets/A01_master.png" alt="Kapak Çiçek Ağacı" />
+      <p class="instructions">AR başladıktan sonra kamerayı A01 görselinin tamamını görecek şekilde esere yöneltin.</p>
+      <button id="startButton" type="button">AR'yi Başlat</button>
+      <p id="launchStatus" class="status">Hazır</p>
+    </section>
+  </main>
+
+  <div id="hud" class="hud hidden" aria-live="polite">
+    <div class="scan-frame" aria-hidden="true">
+      <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
+    </div>
+    <div id="hudStatus" class="hud-status">A01 ağacını bulun…</div>
+    <button id="exitButton" class="exit" type="button" aria-label="AR deneyimini kapat">×</button>
+  </div>
+
+  <div id="arRoot"></div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
