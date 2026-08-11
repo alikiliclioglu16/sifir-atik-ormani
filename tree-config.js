@@ -1,11 +1,23 @@
 /* =============================================================================
    SIFIR ATIK ORMANI — AĞAÇ KONFİGÜRASYONU (tree-config.js)
-   Sürüm 1.0 · V1.5 İmza Hayvanı katmanı
+   Sürüm 2.0 · Multi-Tree Engine V1 (A01–A30)
 
    AMAÇ
    Üretim standardı §15 gereği hiçbir ağaca özel değer motorun içine gömülmez.
-   Her ağaç (A01–A30) bu dosyada tanımlanır; motor (bee-layer.js) sadece bu
-   konfigürasyonu okur. A02 eklemek için aşağıya yeni bir blok yazmak yeterlidir.
+   Tüm eserler (A01–A30) bu dosyada tanımlanır; motor yalnızca bu yapılandırmayı
+   okur. Kod hiçbir yerde "A01" diye sabit kontrol yapmaz.
+
+   YAPI
+     TREE_CONFIG.meta    — motor sürümü, yayın adresi
+     TREE_CONFIG.shared  — tüm eserlerin ortak kullandığı assetler (logo vb.)
+     TREE_CONFIG.trees   — A01..A30 eser yapılandırmaları
+
+   DURUM (status)
+     'locked'  — onaylı, yayında (A01)
+     'active'  — yayında (yeni eserler için)
+     'pending' — eser henüz üretilmedi; motor HİÇBİR asset istemez
+
+   YENİ ESER EKLEME: dosyanın en altındaki şablona bakın.
 
    TARGET KOORDİNAT SİSTEMİ (görev tanımı §6)
      genişlik = 1.00   yükseklik = 1.50   merkez = (0,0)
@@ -50,11 +62,17 @@
     F15: { x: +0.2832, y: -0.2890 }    // kırmızı-yeşil (sağ alt)
   };
 
-  var TREE_CONFIG = {
+  var TREES = {
 
-    /* =========================== A01 — KAPAK ÇİÇEK AĞACI =================== */
+    /* =========================== A01 — KAPAK ÇİÇEK AĞACI ===================
+       DURUM: LOCKED. Bu bloktaki hiçbir değer Multi-Tree Engine V1 kapsamında
+       değiştirilmedi; koordinatlar, zamanlamalar, ölçekler ve ses tasarımı
+       onaylı hâliyle aynen korunmuştur.
+       NOT: A01 assetleri tarihsel olarak assets/ kökünde durur. Regresyon riski
+       almamak için taşınmadılar. Yeni eserler assets/Axx/ altına konur. */
     A01: {
       id: 'A01',
+      status: 'locked',
       title: 'Kapak Çiçek Ağacı',
       theme: 'Tozlaşma ve Canlanma',
 
@@ -67,6 +85,7 @@
       },
       treeVideo: {
         src: 'assets/A01_kling_12s_web.mp4',
+        poster: 'assets/A01_poster.jpg',
         loop: true
       },
 
@@ -244,8 +263,6 @@
         quality: 0.92,
         fileName: 'sifir-atik-ormani-A01',
         shareTitle: 'Sıfır Atık Ormanı — Kapak Çiçek Ağacı',
-        logo: 'assets/A01_logo.webp',
-        logoFallback: 'assets/A01_logo.png',
         logoWidth: 0.17,      // çıktı genişliğine oran
         logoMargin: 0.035,
         logoOpacity: 0.55     // "soluk" filigran
@@ -291,12 +308,80 @@
       }
     }
 
-    /* =========================== A02–A30 ===================================
-       Yeni ağaçlar buraya aynı şablonla eklenecek. Motor değişmeyecek.
-       ====================================================================== */
+  };
+
+  /* ===========================================================================
+     A02–A30 — BEKLEYEN YUVALAR
+     Fiziksel eserler henüz üretilmedi. Buraya uydurma içerik KONULMAZ.
+     Motor bu eserler için hiçbir .mind / video / atlas / ses isteği yapmaz;
+     ziyaretçiye temiz bir "henüz hazır değil" ekranı gösterir.
+     =========================================================================== */
+  for (var n = 2; n <= 30; n++) {
+    var pid = 'A' + String(n).padStart(2, '0');
+    TREES[pid] = {
+      id: pid,
+      status: 'pending',
+      title: null,          // gerçek eser onaylanınca doldurulacak
+      theme: null,
+      target: null,
+      treeVideo: null,
+      animal: null,         // imza hayvanı — her eserin kendine özgü olacak
+      pollen: null,
+      reactionTrigger: null,
+      dioramaPreset: null,
+      audio: null,
+      capture: null
+    };
+  }
+
+  /* ===========================================================================
+     YENİ GERÇEK ESER EKLEME ŞABLONU
+     ---------------------------------------------------------------------------
+     1) Assetleri assets/A07/ altına koyun.
+     2) Aşağıdaki bloğu bu dosyaya, döngüden SONRA yapıştırıp doldurun.
+        (Döngüden sonra yazıldığı için bekleyen yuvanın üzerine yazar.)
+     3) Deploy edin, /?t=A07 adresini fiziksel eserle test edin.
+
+     TREES.A07 = {
+       id: 'A07',
+       status: 'active',
+       title: 'Kurdele Dilek Ağacı',
+       theme: '...',
+       target:    { mindFile: 'assets/A07/targets.mind', targetIndex: 0,
+                    width: 1.0, height: 1.5 },
+       treeVideo: { src: 'assets/A07/tree.mp4', poster: 'assets/A07/poster.jpg',
+                    loop: true },
+       animal: { ... A01.animal ile aynı şema ... },
+       pollen: { ... },
+       reactionTrigger: { ... },
+       dioramaPreset:   { ... },
+       audio:           { ... },
+       capture:         { ... }
+     };
+
+     animal / dioramaPreset / audio / capture bloklarından herhangi biri null
+     bırakılabilir; motor o katmanı sessizce atlar, ağaç deneyimi çalışır.
+     =========================================================================== */
+
+  var TREE_CONFIG = {
+    meta: {
+      engine: 'Multi-Tree Engine V1',
+      configVersion: '2.0',
+      baseUrl: 'https://sifir-atik-ormani.vercel.app',
+      routePattern: '/?t=Axx',
+      totalTrees: 30
+    },
+
+    /* Tüm eserlerin ortak kullandığı assetler. Eser bazlı DEĞİLDİR. */
+    shared: {
+      logo: 'assets/shared/logo.webp',
+      logoFallback: 'assets/shared/logo.png'
+    },
+
+    trees: TREES
   };
 
   global.TREE_CONFIG = TREE_CONFIG;
-  global.TREE_CONFIG_VERSION = '1.0';
+  global.TREE_CONFIG_VERSION = '2.0';
 
 })(window);

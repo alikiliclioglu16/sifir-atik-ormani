@@ -133,6 +133,13 @@ h1 {
   color: var(--ink-soft);
 }
 
+/* [hidden] .thumb'un display:block'unu ezmeli */
+.thumb[hidden] { display: none !important; }
+
+/* Karşılama / bilgi ekranlarındaki kurum logosu */
+.card-logo { display: block; width: 86px; margin: 0 auto 14px; }
+.card-logo img { display: block; width: 100%; height: auto; }
+
 .thumb {
   display: block;
   width: min(190px, 52vw);

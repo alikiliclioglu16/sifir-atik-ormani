@@ -1,6 +1,7 @@
 /* =============================================================================
    SIFIR ATIK ORMANI — A01 "Kapak Çiçek Ağacı" WebAR
-   Sürüm: 8.0.0  (production) — V1 ağaç + V1.5 arı + V2 Growth Halo + ses + fotoğraf
+   Sürüm: 9.0.0  (production) — MULTI-TREE ENGINE V1 (A01–A30)
+   A01 deneyim geçmişi: v4 AR · v5 arılar · v6 Growth Halo · v7 ses · v8 fotoğraf
 
    Mimari kararlar:
    - Runtime MindAR Compiler KULLANILMAZ. Önceden derlenmiş assets/targets.mind okunur.
@@ -21,6 +22,10 @@
      'AR'yi Başlat'a bastığı anda SENKRON olarak unlock edilir. Sesler arka
      planda indirilir ve AR başlatmayı bloklamaz. Ses tamamen başarısız olsa
      bile V1 + V1.5 + V2 görsel deneyimi etkilenmez.
+   - ÇOK-ESER YÖNLENDİRME: hangi eserin yükleneceği ?t= parametresinden
+     tree-router.js ile çözülür. Kod hiçbir yerde "A01" diye sabit kontrol
+     yapmaz. Eser çözülmeden HİÇBİR esere ait asset indirilmez; karşılama,
+     bekleyen ve geçersiz durumlarda AR motoru hiç başlatılmaz.
    - Fotoğraf yakalama capture-layer.js'tedir. WebGL canvas'ı A-Frame'in `tock`
      kancasında (render'dan hemen sonra, aynı karede) okur; bu yüzden
      preserveDrawingBuffer gerekmez.
@@ -32,8 +37,8 @@
   /* ---------------------------------------------------------------- AYARLAR */
 
   var CFG = {
-    version: '8.0.0',
-    treeId: 'A01',
+    version: '9.0.0',
+    engine: 'Multi-Tree Engine V1',
 
     // Kütüphaneler — sırayla denenir, ilki başarısız olursa ikincisi yüklenir.
     aframeUrls: [
@@ -45,13 +50,11 @@
       'https://unpkg.com/mind-ar@1.2.5/dist/mindar-image-aframe.prod.js'
     ],
 
-    targetSrc: 'assets/targets.mind',
-    videoSrc: 'assets/A01_kling_12s_web.mp4',
-
-    // A01 master: 1024 x 1536 piksel = 2:3 dikey.
-    // MindAR konvansiyonu: düzlem genişliği 1, yüksekliği = yükseklik/genişlik.
+    /* Aşağıdakiler seçilen eserin config'inden doldurulur — sabit değildir. */
+    targetSrc: null,
+    videoSrc: null,
     planeWidth: 1,
-    planeHeight: 1536 / 1024, // = 1.5
+    planeHeight: 1.5,
 
     // Takip kararlılığı. missTolerance: hedef "kayboldu" denmeden önce
     // tolere edilen ardışık kare sayısı. Yüksek değer = titremede daha az kesinti.
@@ -86,6 +89,14 @@
     shotButton: $('shotButton'),
     logoImg: $('logoImg'),
     flash: $('flash'),
+    landing: $('landing'),
+    notice: $('notice'),
+    noticeTitle: $('noticeTitle'),
+    noticeText: $('noticeText'),
+    noticeHint: $('noticeHint'),
+    treeTitle: $('treeTitle'),
+    treeCode: $('treeCode'),
+    treeThumb: $('treeThumb'),
     debugPanel: $('debugPanel')
   };
 
@@ -111,6 +122,8 @@
   var growthReady = null;   // growth atlası yükleme Promise'i
   var audioLayer = null;    // Katman 6 ses (yoksa null)
   var captureLayer = null;  // Fotoğraf yakalama (yoksa null)
+  var route = null;         // tree-router sonucu
+  var treeCfg = null;       // seçilen eserin yapılandırması
   var readyTimer = null;
   var slowTimer = null;
 
@@ -135,7 +148,10 @@
   function envSummary() {
     var v = dom.video;
     return [
-      'A01 WebAR v' + CFG.version,
+      CFG.engine + ' · app v' + CFG.version,
+      'rota: ' + (route ? route.state + ' / ' + (route.treeId || '-') + ' (' + route.reason + ')' : '-'),
+      'hedef: ' + (CFG.targetSrc || '-'),
+      'video: ' + (CFG.videoSrc || '-'),
       'URL: ' + location.href,
       'UA: ' + navigator.userAgent,
       'secureContext: ' + (window.isSecureContext ? 'evet' : 'HAYIR'),
@@ -320,7 +336,6 @@
         /* ---- V1.5: imza hayvanı (arı) katmanı ----
            Target entity'sinin object3D'sine çocuk olarak eklenir; böylece
            tüm koordinatlar target'a bağlıdır (görev tanımı §6). */
-        var treeCfg = window.TREE_CONFIG && window.TREE_CONFIG[CFG.treeId];
         if (window.A01BeeLayer && treeCfg && treeCfg.animal) {
           try {
             beeLayer = window.A01BeeLayer.create(THREE, treeCfg, this.el.object3D, {
@@ -402,7 +417,10 @@
         /* ---- Fotoğraf yakalama ---- */
         if (window.A01CaptureLayer && treeCfg && treeCfg.capture && treeCfg.capture.implemented) {
           try {
-            captureLayer = window.A01CaptureLayer.create(treeCfg.capture, {
+            var capCfg = Object.assign({}, treeCfg.capture, {
+              logo: route.shared.logo, logoFallback: route.shared.logoFallback
+            });
+            captureLayer = window.A01CaptureLayer.create(capCfg, {
               log: log,
               getGLCanvas: function () { return sceneEl && sceneEl.renderer ? sceneEl.renderer.domElement : null; },
               getContainer: function () { return dom.arRoot; },
@@ -738,11 +756,85 @@
 
   /* -------------------------------------------------------------- AÇILIŞ   */
 
+  /* --------------------------------------------------------- ROTA EKRANLARI */
+
+  function showOnly(el) {
+    [dom.landing, dom.notice, dom.launch].forEach(function (n) {
+      if (n) n.classList.toggle('hidden', n !== el);
+    });
+  }
+
+  function showLanding() {
+    showOnly(dom.landing);
+    log('Rota: karşılama ekranı — AR başlatılmadı, eser asseti indirilmedi');
+  }
+
+  function showNotice(title, text, hint) {
+    dom.noticeTitle.textContent = title;
+    dom.noticeText.textContent = text;
+    dom.noticeHint.textContent = hint || '';
+    showOnly(dom.notice);
+  }
+
   function boot() {
     if (state.booted) return;
     state.booted = true;
 
-    log('Açılış — A01 WebAR v' + CFG.version);
+    log('Açılış — ' + CFG.engine + ' · app v' + CFG.version);
+
+    /* ---- 1) Hangi eser? Bu çözülmeden HİÇBİR asset istenmez. ---- */
+    if (!window.A01TreeRouter || !window.TREE_CONFIG) {
+      showNotice('Sistem yüklenemedi',
+        'Sayfa dosyaları eksik geldi. Lütfen sayfayı yenileyin.', '');
+      return;
+    }
+    route = window.A01TreeRouter.resolve(window.TREE_CONFIG);
+    DEBUG = DEBUG || route.debug;
+    log('Rota çözümü: ' + route.state + ' · ' + (route.treeId || '(kod yok)') + ' · ' + route.reason);
+
+    if (route.state === 'landing') { showLanding(); return; }
+
+    if (route.state === 'invalid') {
+      showNotice('Eser bulunamadı',
+        'Okuttuğunuz kod (' + String(route.raw).slice(0, 12) + ') sergideki eserlerden birine ait değil. ' +
+        'Lütfen eserin yanındaki QR kodunu tekrar okutun.',
+        'Sergideki eser kodları A01 ile A30 arasındadır.');
+      log('Rota: geçersiz — AR başlatılmadı, eser asseti indirilmedi');
+      return;
+    }
+
+    if (route.state === 'pending') {
+      showNotice((route.treeId || '') + ' henüz hazır değil',
+        'Bu eserin artırılmış gerçeklik deneyimi henüz yayına alınmadı. ' +
+        'Sergideki diğer eserlerin QR kodlarını okutabilirsiniz.',
+        'Hazır olduğunda aynı QR kodu çalışmaya başlayacaktır.');
+      log('Rota: bekleyen (' + route.treeId + ') — AR başlatılmadı, eser asseti indirilmedi');
+      return;
+    }
+
+    /* ---- 2) Yayındaki eser: yolları config'ten al ---- */
+    treeCfg = route.tree;
+    CFG.treeId = route.treeId;
+    CFG.targetSrc = treeCfg.target.mindFile;
+    CFG.videoSrc = treeCfg.treeVideo.src;
+    CFG.planeWidth = treeCfg.target.width || 1;
+    CFG.planeHeight = treeCfg.target.height || 1.5;
+
+    // Video kaynağı ve poster ancak burada, eser çözüldükten sonra atanır
+    dom.video.src = CFG.videoSrc;
+    if (treeCfg.treeVideo.poster) dom.video.poster = treeCfg.treeVideo.poster;
+
+    // Açılış kartı seçilen esere göre
+    document.title = (treeCfg.title ? treeCfg.title + ' — ' : '') + 'Sıfır Atık Ormanı AR';
+    if (dom.treeTitle) dom.treeTitle.textContent = treeCfg.title || CFG.treeId;
+    if (dom.treeCode) dom.treeCode.textContent = CFG.treeId + ' · Artırılmış Gerçeklik';
+    if (dom.treeThumb && treeCfg.treeVideo.poster) {
+      dom.treeThumb.src = treeCfg.treeVideo.poster;
+      dom.treeThumb.alt = (treeCfg.title || CFG.treeId) + ' eseri';
+      dom.treeThumb.hidden = false;
+    }
+    showOnly(dom.launch);
+
     log(envSummary());
 
     if (!isSecure()) {
@@ -758,9 +850,8 @@
 
     /* --- Katman 6: ses. Erken kurulur, indirme ARKA PLANDA yapılır.
        Görev tanımı §8: AR tracking'i bloklamaz. --- */
-    var tcfg = window.TREE_CONFIG && window.TREE_CONFIG[CFG.treeId];
-    if (window.A01AudioLayer && tcfg && tcfg.audio && tcfg.audio.implemented) {
-      audioLayer = window.A01AudioLayer.create(tcfg.audio, { log: log });
+    if (window.A01AudioLayer && treeCfg.audio && treeCfg.audio.implemented) {
+      audioLayer = window.A01AudioLayer.create(treeCfg.audio, { log: log });
       if (audioLayer) {
         audioLayer.load().catch(function (e) {
           log('Ses yüklenemedi, sessiz devam: ' + (e && e.message ? e.message : e));

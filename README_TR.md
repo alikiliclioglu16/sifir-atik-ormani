@@ -1,69 +1,214 @@
-# A01 — Kapak Çiçek Ağacı | WebAR (Sürüm 8.0.0)
+# Sıfır Atık Ormanı — Multi-Tree Engine V1
 
-Dünyanın Sıfır Atık Ormanı sergisi.
-**V1** ağaç canlanması + **V1.5** imza hayvanı (6 arı, polen) + **V2** Growth Halo (papercraft bahçe) + **Katman 6** ses.
-Uygulama indirmeden iPhone Safari ve Android Chrome'da çalışır.
+Tek depo · tek deploy · tek motor · 30 yapılandırma · eser başına bir QR/rota.
+
+A01 "Kapak Çiçek Ağacı" **LOCKED** referans uygulamadır; bu sürümde davranışı,
+koordinatları, zamanlamaları ve ses tasarımı hiç değiştirilmemiştir.
+A02–A30 fiziksel eserler henüz üretilmediği için yalnızca **bekleyen yuva**
+olarak tanımlıdır; uydurma içerik yoktur.
 
 ---
 
-## Depo yapısı
+## 1. URL yönlendirme
+
+| Adres | Davranış |
+|---|---|
+| `/` | Sergi karşılama ekranı. MindAR başlatılmaz, hiçbir esere ait asset inmez. |
+| `/?t=A01` | A01 deneyimi (yayında) |
+| `/?t=A02` … `/?t=A30` | "Henüz hazır değil". Asset inmez, kamera açılmaz. |
+| `/?t=A99`, `/?t=test` | "Eser bulunamadı". Asset inmez, kamera açılmaz. |
+| `/?t=A01&debug=1` | A01 + teknik günlük paneli |
+
+Küçük harf ve kısa yazımlar normalize edilir: `a01`, `A1`, `1` → **A01**.
+Aralık dışı değerler reddedilir; **A01'e sessizce geri düşülmez.**
+
+Çözümleme tek yerde yapılır: **`tree-router.js`**. `app.js` yalnızca sonucu
+tüketir; kodun hiçbir yerinde `"A01"` diye sabit kontrol yoktur.
+
+```
+A01TreeRouter.resolve(TREE_CONFIG)
+  -> { state, treeId, tree, shared, meta, debug, reason }
+     state: 'landing' | 'invalid' | 'pending' | 'active'
+```
+
+---
+
+## 2. Depo yapısı
 
 ```
 /  (repo kökü)
-├── index.html            V1 + V1.5 arayüzü
-├── app.js                AR bootstrap, MindAR, video, katman senkronu
-├── tree-config.js        AĞAÇ VERİSİ — A01 rotaları, çiçekleri, drop noktaları
-├── bee-layer.js          İMZA HAYVANI MOTORU — sprite, state machine, polen
-├── growth-layer.js       GROWTH HALO MOTORU — tek atış atlas oynatıcı
-├── audio-layer.js        SES MOTORU — Web Audio, kesintisiz loop, fade
-├── capture-layer.js      FOTOĞRAF MOTORU — kamera+AR+logo birleştirme
+├── index.html            karşılama + bekleyen + geçersiz + AR ekranları
+├── app.js                AR bootstrap, rota tüketimi, katman senkronu
+├── tree-router.js        ?t= çözümleyici                        (YENİ)
+├── tree-config.js        meta + shared + 30 eser yapılandırması
+├── bee-layer.js          imza hayvanı motoru
+├── growth-layer.js       Growth Halo motoru
+├── audio-layer.js        ses motoru
+├── capture-layer.js      fotoğraf yakalama motoru
 ├── style.css
-├── preview.html          AR'sız hizalama önizlemesi
+├── preview.html          AR'sız hizalama önizlemesi (geliştirme aracı)
 ├── vercel.json
 ├── README_TR.md
+├── qr/                   30 QR (SVG + PNG) + qr-manifest.csv    (YENİ)
 └── assets/
-    ├── targets.mind            önceden derlenmiş MindAR hedefi (V1)
-    ├── A01_kling_12s_web.mp4   ağaç animasyonu (V1)
-    ├── A01_bee_atlas.webp      arı sprite atlası (V1.5) — 3 klip × 20 kare
-    ├── A01_bee_atlas.png       ↑ WebP açılmazsa otomatik yedek
-    ├── A01_growth_atlas.webp   growth sprite atlası (V2) — 45 kare @ 8 fps
-    ├── A01_growth_atlas.png    ↑ WebP açılmazsa otomatik yedek
-    ├── A01_logo.webp           kurum logosu filigranı (+ .png yedeği)
-    ├── A01_ambient_loop.mp3     ambient ses (loop, 18.20 sn)
-    ├── A01_bee_wings_loop.mp3   arı kanat sesi (loop, 4.00 sn)
-    ├── A01_growth_reveal.mp3    büyüme sesi (tek atış, 6.00 sn)
-    ├── A01_poster.jpg          açılış ekranı görseli
-    └── A01_master.png          baskı/arşiv master'ı (sayfa yüklemez)
+    ├── shared/logo.webp|png     TÜM eserlerin ortak logosu      (YENİ konum)
+    ├── targets.mind             A01 hedefi (tarihsel konum, taşınmadı)
+    ├── A01_kling_12s_web.mp4    A01 ağaç animasyonu
+    ├── A01_bee_atlas.webp|png   A01 imza hayvanı (arı)
+    ├── A01_growth_atlas.webp|png
+    ├── A01_poster.jpg · A01_master.png
+    ├── A01_ambient_loop.mp3 · A01_bee_wings_loop.mp3 · A01_growth_reveal.mp3
+    └── A02/ … A30/              gelecek eserler buraya
 ```
 
-### Placeholder / değiştirilebilir dosyalar
+**A01 assetleri neden taşınmadı?** Çalışan bir deneyimde kozmetik yeniden
+adlandırma regresyon riskidir ve motor yolları config'ten okuduğu için gereksizdir.
+Yeni eserler `assets/Axx/` düzenini kullanır; motorda değişiklik gerekmez.
 
-| Dosya | Ne zaman değişir |
-|---|---|
-| `assets/A01_kling_12s_web.mp4` | ✅ Filigransız final export entegre edildi (11 Ağustos 2026) |
-| `assets/targets.mind` | Nihai fiziksel eser fotoğrafı derlendiğinde |
-| `assets/A01_bee_atlas.png` | Yeni arı klipleri geldiğinde (aynı 10×6 / 192px düzen) |
-| `assets/A01_growth_atlas.png` | Yeni growth klibi geldiğinde (aynı 7×7 / 336×192 düzen) |
-| `tree-config.js` → `dioramaPreset.transform` | Bahçenin konum/ölçüsü ayarlanacaksa |
-| `assets/*.mp3` | Yeni ses assetleri geldiğinde (`tree-config.js` → `audio.*.duration` güncellenmeli) |
-| `tree-config.js` → `A01_FLOWERS` | Farklı çiçek eşlemesi istenirse |
-| `tree-config.js` → `routes` | Rota, gecikme, hız, ölçek ayarı istenirse |
+Tek taşınan dosya **logo**dur (`assets/A01_logo.*` → `assets/shared/logo.*`).
+Bu bir AR asseti değil, tüm eserlerin ortak arayüz öğesidir; A01 adıyla kalması
+30 eserlik sistemde yanıltıcı olurdu.
 
 ---
 
-## Katman mimarisi (standart §11)
+## 3. Yapılandırma şeması
 
-```
-MindAR Image Target
-└── a01Target entity  (mindar-image-target, a01-experience)
-    ├── Katman 2 — Kling ağaç videosu     THREE.VideoTexture düzlemi, z=0
-    ├── Katman 3 — İmza hayvanı           6 sprite billboard, z=0.020–0.115
-    └── Katman 4 — Polen particle         THREE.Points, additive
-        └── Katman 5 — V2 diorama         event kancası hazır, görsel YOK
-            └── Katman 6 — Ses            config alanı hazır, uygulanmadı
+```js
+window.TREE_CONFIG = {
+  meta:   { engine, configVersion, baseUrl, routePattern, totalTrees },
+  shared: { logo, logoFallback },
+  trees:  { A01: {...}, A02: {...}, ... A30: {...} }
+}
 ```
 
-Tüm arı koordinatları **target'a bağlıdır** (genişlik 1.0, yükseklik 1.5, merkez 0,0).
+### Yayındaki eser (A01 örneği)
+
+| Alan | Zorunlu | Açıklama |
+|---|---|---|
+| `id`, `status` | ✔ | `'locked'` / `'active'` |
+| `title`, `theme` | – | arayüzde gösterilir |
+| `target.mindFile` | ✔ | derlenmiş MindAR hedefi |
+| `target.width/height` | ✔ | 1.0 × 1.5 (2:3 dikey) |
+| `treeVideo.src` | ✔ | Kling ağaç animasyonu |
+| `treeVideo.poster` | – | açılış kartı görseli |
+| `animal` | – | imza hayvanı: atlas, rotalar, çiçekler, gecikme, hız, ölçek, gölge |
+| `pollen` | – | parçacık ayarları |
+| `reactionTrigger` | – | çevresel tepki event'i |
+| `dioramaPreset` | – | Growth Halo: atlas, transform, gölge, tetik |
+| `audio` | – | ambient / hayvan / growth sesleri |
+| `capture` | – | fotoğraf çıktısı ve filigran ayarları |
+
+`animal`, `dioramaPreset`, `audio`, `capture` bloklarından herhangi biri `null`
+bırakılabilir; motor o katmanı sessizce atlar, ağaç deneyimi çalışır.
+
+### Bekleyen eser (A02–A30)
+
+```js
+{ id:'A02', status:'pending', title:null, theme:null,
+  target:null, treeVideo:null, animal:null, pollen:null,
+  reactionTrigger:null, dioramaPreset:null, audio:null, capture:null }
+```
+
+Router `status` yayında değilse **hiçbir asset yolunu okumaz**. Ayrıca
+`status:'active'` olup `target.mindFile` veya `treeVideo.src` eksikse eser yine
+bekleyen sayılır — yarım yapılandırma yüzünden kırık AR açılmaz.
+
+---
+
+## 4. Asset yükleme kuralları
+
+`index.html` içinde **eser bazlı hiçbir preload yoktur.** Hangi eserin
+yükleneceği `?t=` çözülene kadar bilinmez.
+
+Sıra:
+1. `tree-config.js` + `tree-router.js` yüklenir (birkaç KB)
+2. Rota çözülür
+3. Yalnızca `active` ise: video `src`/`poster` atanır → hedef `.mind`
+   doğrulanır → A-Frame + MindAR CDN'den yüklenir → seçilen eserin atlasları
+   ve sesleri istenir
+
+Ölçüm sonucu §10'da.
+
+---
+
+## 5. Yeni gerçek eser ekleme (A02–A30)
+
+1. **Eseri fotoğrafla** — dik açı, düz ışık, kadrajı eser doldursun.
+2. **`.mind` derle** ve kalite puanını ölç.
+   Takip noktası ≥60 iyi · 30–60 sınırda · <30 çalışmaz.
+3. **Assetleri koy:** `assets/A07/targets.mind`, `tree.mp4`, `poster.jpg`,
+   varsa `animal_atlas.webp`, `growth_atlas.webp`, sesler.
+4. **`tree-config.js`** içine dosyanın altındaki şablonu yapıştırıp doldur,
+   `status: 'active'` yap.
+5. **Deploy et.**
+6. **`/?t=A07`** adresini fiziksel eserle test et.
+
+Motor kodunda hiçbir değişiklik gerekmez.
+
+---
+
+## 6. QR eşlemesi
+
+`qr/` klasöründe 30 eser için SVG + PNG ve `qr-manifest.csv`:
+
+```
+treeId,url,qrSvg,qrPng
+A01,https://sifir-atik-ormani.vercel.app/?t=A01,qr/A01.svg,qr/A01.png
+```
+
+Baskı için **SVG** kullanın. Hata düzeltme seviyesi M, 4 modül sessiz alan,
+siyah/beyaz. 30 QR'ın tamamı geri okunarak doğru URL'yi taşıdığı doğrulandı.
+
+`qr/` klasörü siteye deploy edilir ama site çalışma anında hiçbir QR
+kütüphanesine bağımlı değildir — kodlar statik dosyadır.
+
+---
+
+## 7. Hata izolasyonu
+
+| Durum | Sonuç |
+|---|---|
+| Hedef `.mind` inmiyor | Kontrollü Türkçe hata ekranı + "Tekrar Dene" |
+| Hayvan atlası inmiyor | Katman atlanır, ağaç deneyimi çalışır |
+| Growth atlası inmiyor | Katman atlanır, ağaç + hayvan çalışır |
+| Ses inmiyor / izin yok | Görsel AR tam çalışır |
+| WebP açılmıyor | PNG yedeğine otomatik geçilir |
+| Bekleyen eser | Hiçbir yol istenmez, temiz bilgi ekranı |
+
+Sonsuz yeniden deneme veya yakalanmamış promise hatası yoktur.
+
+---
+
+## 8. Hata ayıklama
+
+`/?t=A01&debug=1` → ekranın altında teknik günlük: seçilen eser kodu, rota
+durumu ve gerekçesi, hedef ve video yolu, kurulan katmanlar, asset hataları.
+Normal sergi modunda görünmez.
+
+---
+
+## 9. Telefon testi
+
+1. Eserin yanındaki QR'ı kamerayla okut (veya adresi elle aç).
+2. `AR'yi Başlat` → kamera iznine **İzin Ver**.
+3. Görselin tamamını 40–100 cm mesafeden kadraja al.
+4. Akış: 0–2 sn ağaç canlanır · 2–4 sn hayvan girer · 5–8 sn etkileşim ·
+   8.6 sn ilk polen düşer, bahçe büyümeye başlar · ~14 sn final bahçe.
+5. Ses için telefonun **yandaki sessize alma anahtarını kapatın**.
+6. Alt ortadaki **◉** ile fotoğraf çekilir; logo sağ üste soluk basılır.
+
+---
+
+## 10. Sürüm geçmişi
+
+| Sürüm | İçerik |
+|---|---|
+| v4 | A01 WebAR — MindAR + Kling ağaç videosu |
+| v5 | V1.5 imza hayvanı: 6 arı, polen, pollenDrop |
+| v6 | V2 Growth Halo |
+| v7 | Katman 6 ses |
+| v8 | Fotoğraf yakalama, gölgeler, gerçek parallax, WebP/mono optimizasyon |
+| **v9** | **Multi-Tree Engine V1 — 30 eser, rota, karşılama, QR** |
 
 ---
 

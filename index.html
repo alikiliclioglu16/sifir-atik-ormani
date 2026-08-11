@@ -7,14 +7,12 @@
   <meta name="format-detection" content="telephone=no" />
   <meta name="referrer" content="strict-origin-when-cross-origin" />
   <meta name="description" content="Dünyanın Sıfır Atık Ormanı — A01 Kapak Çiçek Ağacı artırılmış gerçeklik deneyimi. Uygulama indirmeden çalışır." />
-  <title>A01 — Kapak Çiçek Ağacı | Sıfır Atık Ormanı AR</title>
+  <title>Sıfır Atık Ormanı — Artırılmış Gerçeklik Sergisi</title>
 
   <link rel="stylesheet" href="style.css" />
-  <link rel="preload" as="image" href="assets/A01_poster.jpg" />
-  <link rel="preload" as="image" href="assets/A01_bee_atlas.webp" />
-  <link rel="preload" as="image" href="assets/A01_growth_atlas.webp" />
-  <link rel="prefetch" as="fetch" href="assets/A01_ambient_loop.mp3" crossorigin />
-  <link rel="preload" as="image" href="assets/A01_logo.webp" />
+  <!-- DİKKAT: Burada eser bazlı hiçbir preload YOKTUR.
+       Hangi eserin yükleneceği ?t= parametresi çözülene kadar bilinmez;
+       assetler app.js tarafından seçilen esere göre enjekte edilir. -->
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
 </head>
@@ -29,8 +27,6 @@
   <video
     id="a01Video"
     class="offscreen-video"
-    src="assets/A01_kling_12s_web.mp4"
-    poster="assets/A01_poster.jpg"
     preload="auto"
     loop
     muted
@@ -41,15 +37,48 @@
     tabindex="-1"
     aria-hidden="true"></video>
 
+  <!-- ============ SERGİ KARŞILAMA EKRANI (/) ============
+       QR olmadan alan adını açan ziyaretçi için. MindAR başlatılmaz,
+       hiçbir esere ait asset indirilmez. -->
+  <main id="landing" class="launch hidden">
+    <section class="card">
+      <picture class="card-logo">
+        <source srcset="assets/shared/logo.webp" type="image/webp">
+        <img src="assets/shared/logo.png" alt="" width="232" height="292">
+      </picture>
+      <p class="eyebrow">DÜNYANIN SIFIR ATIK ORMANI</p>
+      <h1>Sergiye hoş geldiniz</h1>
+      <p class="instructions">
+        Her eserin yanında <strong>kendine ait bir QR kodu</strong> vardır.
+        Canlandırmak istediğiniz eserin QR kodunu telefon kameranızla okutun;
+        o esere özel artırılmış gerçeklik deneyimi açılır.
+      </p>
+      <p class="mini">Uygulama indirmenize gerek yok · Kamera görüntüsü kaydedilmez</p>
+    </section>
+  </main>
+
+  <!-- ============ HENÜZ HAZIR DEĞİL / GEÇERSİZ KOD ============ -->
+  <main id="notice" class="launch hidden">
+    <section class="card">
+      <picture class="card-logo">
+        <source srcset="assets/shared/logo.webp" type="image/webp">
+        <img src="assets/shared/logo.png" alt="" width="232" height="292">
+      </picture>
+      <p class="eyebrow" id="noticeEyebrow">DÜNYANIN SIFIR ATIK ORMANI</p>
+      <h1 id="noticeTitle">…</h1>
+      <p class="instructions" id="noticeText">…</p>
+      <p class="mini" id="noticeHint"></p>
+    </section>
+  </main>
+
   <!-- ============ AÇILIŞ EKRANI ============ -->
-  <main id="launch" class="launch">
+  <main id="launch" class="launch hidden">
     <section class="card">
       <p class="eyebrow">DÜNYANIN SIFIR ATIK ORMANI</p>
-      <h1>Kapak Çiçek Ağacı</h1>
-      <p class="code">A01 · Artırılmış Gerçeklik</p>
+      <h1 id="treeTitle">…</h1>
+      <p class="code" id="treeCode">Artırılmış Gerçeklik</p>
 
-      <img class="thumb" src="assets/A01_poster.jpg" width="720" height="1080"
-           alt="A01 Kapak Çiçek Ağacı eseri" />
+      <img class="thumb" id="treeThumb" width="720" height="1080" alt="" hidden />
 
       <p class="instructions">
         Butona dokunun, kamera izni verin ve telefonu
@@ -76,8 +105,8 @@
     <!-- Canlı görüntüdeki soluk kurum logosu; fotoğrafa da bu öğe basılır
          (ek ağ isteği olmaz). WebP + PNG yedeği tarayıcı tarafından seçilir. -->
     <picture class="logo-wm">
-      <source srcset="assets/A01_logo.webp" type="image/webp">
-      <img id="logoImg" src="assets/A01_logo.png" alt="" crossorigin="anonymous" decoding="async">
+      <source srcset="assets/shared/logo.webp" type="image/webp">
+      <img id="logoImg" src="assets/shared/logo.png" alt="" crossorigin="anonymous" decoding="async">
     </picture>
 
     <button id="shotButton" class="shot hidden" type="button" aria-label="Fotoğraf çek">
@@ -104,6 +133,7 @@
 
   <!-- V1.5 imza hayvanı katmanı: önce veri, sonra motor, en son uygulama -->
   <script src="tree-config.js"></script>
+  <script src="tree-router.js"></script>
   <script src="bee-layer.js"></script>
   <script src="growth-layer.js"></script>
   <script src="audio-layer.js"></script>
