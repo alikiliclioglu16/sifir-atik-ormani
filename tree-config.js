@@ -78,7 +78,8 @@
         /* Sprite atlası: 3 davranış klibi × 20 kare, hücre 192px, 10 sütun × 6 satır.
            Kling MP4'lerinden offline alpha çıkarılarak üretildi (bkz. rapor).      */
         atlas: {
-          src: 'assets/A01_bee_atlas.png',
+          src: 'assets/A01_bee_atlas.webp',
+          fallback: 'assets/A01_bee_atlas.png',   // WebP açılamazsa otomatik geçilir
           cols: 10,
           rows: 6,
           cell: 192,
@@ -95,9 +96,24 @@
            Arı karenin ~%68'ini kaplar → görünen arı ≈ 0.15 target genişliği. */
         baseScale: 0.225,
 
-        /* Arı düzleminin target düzleminden öne çıkma aralığı (perspektif derinliği) */
+        /* Arı düzleminin target düzleminden öne çıkma aralığı.
+           zFar 0.115 -> 0.200: uçuş sırasında arılar esere göre GERÇEK parallax
+           yapar; telefon hareket ettikçe eserin önünde oldukları hissedilir.
+           Çiçek üzerindeyken zNear'a inerler, yani konma hizası bozulmaz. */
         zNear: 0.020,
-        zFar: 0.115,
+        zFar: 0.200,
+
+        /* Arıların eser düzlemine düşen yumuşak gölgesi.
+           Geometri ve materyal altı arı arasında PAYLAŞILIR (tek ek draw batch). */
+        shadow: {
+          enabled: true,
+          color: 0x0d2a1c,
+          opacity: 0.30,
+          scale: 0.85,      // temel gölge boyutu (arı boyutuna oranla)
+          spread: 2.20,     // z mesafesiyle büyüme katsayısı
+          offsetX: 0.30,    // ışık yönü: sağa
+          offsetY: 0.42     // ve aşağı
+        },
 
         flowers: A01_FLOWERS,
 
@@ -188,7 +204,8 @@
         style: 'papercraft-spring',
         trigger: 'first-pollen-drop',
 
-        asset: 'assets/A01_growth_atlas.png',
+        asset: 'assets/A01_growth_atlas.webp',
+        assetFallback: 'assets/A01_growth_atlas.png',
         atlas: { cols: 7, rows: 7, cellW: 336, cellH: 192, count: 45, fps: 8 },
 
         /* Target'a bağlı yerleşim. Bahçe eserin ALT kenarından dışarı büyür;
@@ -197,15 +214,43 @@
         transform: {
           x: 0.00,
           y: -0.62,          // merkez; düzlem alt kenarı ≈ -1.03 (target dışı, bilinçli)
-          z: 0.030,          // ağaç videosunun (z=0) önünde, arıların altında
+          z: 0.160,          // target düzleminin ÖNÜNDE → gerçek parallax
+          rotationXDeg: -20, // üst kenar geriye yatar → gerçek perspektif kısalması
           width: 1.45,
           height: 0.8286     // = 1.45 * 0.5714 (hücre oranı)
+        },
+        /* Eğim + derinlik kontrolü:
+           yarı yükseklik * sin(20°) = 0.4143 * 0.342 = 0.142
+           üst kenar z = 0.160 - 0.142 = 0.018  (eserin ÖNÜNDE kalır, gömülmez)
+           alt kenar z = 0.160 + 0.142 = 0.302  (izleyiciye doğru çıkar)
+           Bahçenin esere düşen temas gölgesi onu zemine oturtur. */
+        shadow: {
+          enabled: true,
+          color: 0x0b2418,
+          opacity: 0.26,
+          scaleX: 0.92,
+          scaleY: 0.55,
+          offsetY: 0.10
         },
         renderOrder: 8,      // arılar 10+, ağaç videosu 0
         fadeIn: 0.35,
         hold: true,          // son karede tutulur, loop yok
         widthFactor: 1.45
       },
+      /* ------------------- FOTOĞRAF YAKALAMA (sergi paylaşımı) -------------- */
+      capture: {
+        implemented: true,
+        maxWidth: 1440,
+        quality: 0.92,
+        fileName: 'sifir-atik-ormani-A01',
+        shareTitle: 'Sıfır Atık Ormanı — Kapak Çiçek Ağacı',
+        logo: 'assets/A01_logo.webp',
+        logoFallback: 'assets/A01_logo.png',
+        logoWidth: 0.17,      // çıktı genişliğine oran
+        logoMargin: 0.035,
+        logoOpacity: 0.55     // "soluk" filigran
+      },
+
       /* ------------------------- KATMAN 6 — SES (standart §13) --------------
          Motor (audio-layer.js) ağaca özel hiçbir yol/değer içermez; hepsi burada.
          `duration` alanı DÖNGÜ İÇİN ZORUNLUDUR: tarayıcı MP3 decoder'ları

@@ -1,6 +1,6 @@
 /* =============================================================================
    SIFIR ATIK ORMANI — A01 "Kapak Çiçek Ağacı" WebAR
-   Sürüm: 7.0.0  (production) — V1 ağaç + V1.5 arı + V2 Growth Halo + Katman 6 ses
+   Sürüm: 8.0.0  (production) — V1 ağaç + V1.5 arı + V2 Growth Halo + ses + fotoğraf
 
    Mimari kararlar:
    - Runtime MindAR Compiler KULLANILMAZ. Önceden derlenmiş assets/targets.mind okunur.
@@ -21,6 +21,9 @@
      'AR'yi Başlat'a bastığı anda SENKRON olarak unlock edilir. Sesler arka
      planda indirilir ve AR başlatmayı bloklamaz. Ses tamamen başarısız olsa
      bile V1 + V1.5 + V2 görsel deneyimi etkilenmez.
+   - Fotoğraf yakalama capture-layer.js'tedir. WebGL canvas'ı A-Frame'in `tock`
+     kancasında (render'dan hemen sonra, aynı karede) okur; bu yüzden
+     preserveDrawingBuffer gerekmez.
    ============================================================================= */
 
 (function () {
@@ -29,7 +32,7 @@
   /* ---------------------------------------------------------------- AYARLAR */
 
   var CFG = {
-    version: '7.0.0',
+    version: '8.0.0',
     treeId: 'A01',
 
     // Kütüphaneler — sırayla denenir, ilki başarısız olursa ikincisi yüklenir.
@@ -80,6 +83,9 @@
     errorDetailsToggle: $('errorDetailsToggle'),
     errorDetails: $('errorDetails'),
     muteButton: $('muteButton'),
+    shotButton: $('shotButton'),
+    logoImg: $('logoImg'),
+    flash: $('flash'),
     debugPanel: $('debugPanel')
   };
 
@@ -104,6 +110,7 @@
   var growthLayer = null;   // V2 Growth Halo katmanı (yoksa null)
   var growthReady = null;   // growth atlası yükleme Promise'i
   var audioLayer = null;    // Katman 6 ses (yoksa null)
+  var captureLayer = null;  // Fotoğraf yakalama (yoksa null)
   var readyTimer = null;
   var slowTimer = null;
 
@@ -392,6 +399,32 @@
           log('Growth katmanı yok veya implemented=false — V1+V1.5 devam ediyor');
         }
 
+        /* ---- Fotoğraf yakalama ---- */
+        if (window.A01CaptureLayer && treeCfg && treeCfg.capture && treeCfg.capture.implemented) {
+          try {
+            captureLayer = window.A01CaptureLayer.create(treeCfg.capture, {
+              log: log,
+              getGLCanvas: function () { return sceneEl && sceneEl.renderer ? sceneEl.renderer.domElement : null; },
+              getContainer: function () { return dom.arRoot; },
+              getLogo: function () { return dom.logoImg; },
+              onStart: function () { flashScreen(); },
+              onResult: function (ok, msg) {
+                if (dom.shotButton) dom.shotButton.disabled = false;
+                if (msg) setHud(msg);
+                setTimeout(function () {
+                  if (state.targetVisible) setHud('Ağaç canlanıyor…');
+                  else setHud('A01 ağacını kadraja alın…');
+                }, 1800);
+              }
+            });
+            if (dom.shotButton) dom.shotButton.classList.remove('hidden');
+            log('Fotoğraf yakalama hazır');
+          } catch (e) {
+            captureLayer = null;
+            log('Fotoğraf yakalama kurulamadı: ' + e.message);
+          }
+        }
+
         /* ---- HEDEF BULUNDU ---- */
         this.el.addEventListener('targetFound', function () {
           state.targetVisible = true;
@@ -451,6 +484,12 @@
           if (beeLayer) beeLayer.update(dtSec);
           if (growthLayer) growthLayer.update(dtSec);
         }
+      },
+
+      // tock() A-Frame'de render'dan HEMEN SONRA, aynı animasyon karesinde
+      // çalışır. WebGL drawing buffer bu anda hâlâ okunabilir durumdadır.
+      tock: function () {
+        if (captureLayer) captureLayer.onTock();
       },
 
       remove: function () {
@@ -656,6 +695,25 @@
   /* ------------------------------------------------------------- ARAYÜZ    */
 
   dom.startButton.addEventListener('click', startAR);
+
+  function flashScreen() {
+    if (!dom.flash) return;
+    dom.flash.classList.remove('hidden');
+    dom.flash.classList.add('on');
+    setTimeout(function () {
+      dom.flash.classList.remove('on');
+      setTimeout(function () { dom.flash.classList.add('hidden'); }, 260);
+    }, 90);
+  }
+
+  if (dom.shotButton) {
+    dom.shotButton.addEventListener('click', function () {
+      if (!captureLayer || captureLayer.isBusy()) return;
+      this.disabled = true;
+      setHud('Fotoğraf hazırlanıyor…');
+      captureLayer.request();
+    });
+  }
 
   if (dom.muteButton) {
     dom.muteButton.addEventListener('click', function () {

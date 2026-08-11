@@ -48,6 +48,7 @@
     parentObject3D.add(group);
 
     var mesh = null, mat = null, tex = null;
+    var shadow = null, shadowMat = null;
     var started = false, finished = false;
     var t = 0, ready = false;
 
@@ -62,9 +63,22 @@
       object3D: group,
 
       load: function (onReady, onError) {
-        new THREE.TextureLoader().load(
-          D.asset,
-          function (texture) {
+        var loader = new THREE.TextureLoader();
+        var tried = false;
+        function fallbackOrFail(e) {
+          if (!tried && D.assetFallback) {
+            tried = true;
+            log('Growth atlası (' + D.asset + ') açılamadı, PNG yedeğine geçiliyor');
+            loader.load(D.assetFallback, onTex, undefined, function () {
+              log('Growth atlası YÜKLENEMEDİ (yedek de başarısız)');
+              if (onError) onError(e);
+            });
+          } else {
+            log('Growth atlası YÜKLENEMEDİ: ' + D.asset);
+            if (onError) onError(e);
+          }
+        }
+        function onTex(texture) {
             tex = texture;
             if ('colorSpace' in tex && THREE.SRGBColorSpace) tex.colorSpace = THREE.SRGBColorSpace;
             else if ('encoding' in tex && THREE.sRGBEncoding) tex.encoding = THREE.sRGBEncoding;
@@ -87,25 +101,48 @@
 
             mesh = new THREE.Mesh(new THREE.PlaneGeometry(T.width, T.height), mat);
             mesh.position.set(T.x || 0, T.y || 0, T.z || 0.03);
+            // GERÇEK PARALLAX: düzlem target'ın ÖNÜNDE durur ve hafifçe geriye
+            // yatar. Telefon hareket ettikçe bahçe esere göre kayar; derinlik
+            // artık sahte (pişirilmiş ezme) değil, gerçek perspektiftir.
+            if (T.rotationXDeg) mesh.rotation.x = T.rotationXDeg * Math.PI / 180;
             // Arıların (renderOrder 10+) altında, ağaç videosunun (0) üstünde
             mesh.renderOrder = (D.renderOrder != null) ? D.renderOrder : 8;
             mesh.frustumCulled = false;
             mesh.visible = false;
             group.add(mesh);
 
+            // Bahçenin esere düşen yumuşak temas gölgesi (zemine oturtur)
+            if (D.shadow && D.shadow.enabled) {
+              var sc = document.createElement('canvas'); sc.width = sc.height = 64;
+              var sg = sc.getContext('2d');
+              var rg = sg.createRadialGradient(32, 32, 0, 32, 32, 32);
+              rg.addColorStop(0.00, 'rgba(0,0,0,0.80)');
+              rg.addColorStop(0.50, 'rgba(0,0,0,0.34)');
+              rg.addColorStop(1.00, 'rgba(0,0,0,0)');
+              sg.fillStyle = rg; sg.fillRect(0, 0, 64, 64);
+              var st = new THREE.Texture(sc); st.needsUpdate = true;
+              shadowMat = new THREE.MeshBasicMaterial({
+                map: st, color: new THREE.Color(D.shadow.color != null ? D.shadow.color : 0x0b2418),
+                transparent: true, opacity: 0, depthWrite: false, toneMapped: false
+              });
+              shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), shadowMat);
+              shadow.scale.set(T.width * (D.shadow.scaleX || 0.92), T.height * (D.shadow.scaleY || 0.55), 1);
+              shadow.position.set(T.x || 0, (T.y || 0) + (D.shadow.offsetY || 0.10), 0.006);
+              shadow.renderOrder = 5;
+              shadow.frustumCulled = false;
+              shadow.visible = false;
+              group.add(shadow);
+            }
+
             setFrame(0);
             ready = true;
             log('Growth atlası yüklendi: ' + A.cols + 'x' + A.rows + ' hücre, ' +
                 A.count + ' kare @ ' + A.fps + ' fps · düzlem ' +
-                T.width + ' x ' + T.height.toFixed(3) + ' @ y=' + T.y);
+                T.width + ' x ' + T.height.toFixed(3) + ' @ y=' + T.y +
+                ' z=' + (T.z || 0) + ' eğim=' + (T.rotationXDeg || 0) + '°');
             if (onReady) onReady();
-          },
-          undefined,
-          function (e) {
-            log('Growth atlası YÜKLENEMEDİ: ' + D.asset);
-            if (onError) onError(e);
-          }
-        );
+        }
+        loader.load(D.asset, onTex, undefined, fallbackOrFail);
       },
 
       /* İlk geçerli pollenDrop bunu çağırır. Sonraki çağrılar yok sayılır. */
@@ -116,6 +153,7 @@
         setFrame(0);
         mat.opacity = 0;
         mesh.visible = true;
+        if (shadow) { shadowMat.opacity = 0; shadow.visible = true; }
         group.visible = true;
         log('Growth Halo BAŞLADI (' + (reason || 'first-pollen-drop') + ')');
         return true;
@@ -124,14 +162,14 @@
       /* targetFound: temiz başlangıç state'i — görünmez, 0. karede bekler */
       reset: function () {
         started = false; finished = false; t = 0;
-        if (ready) { setFrame(0); mat.opacity = 1; mesh.visible = false; }
+        if (ready) { setFrame(0); mat.opacity = 1; mesh.visible = false; if (shadow) shadow.visible = false; }
         group.visible = true;
       },
 
       /* targetLost: durdur, gizle, state sıfırla */
       stop: function () {
         started = false; finished = false; t = 0;
-        if (ready) { setFrame(0); mat.opacity = 1; mesh.visible = false; }
+        if (ready) { setFrame(0); mat.opacity = 1; mesh.visible = false; if (shadow) shadow.visible = false; }
         group.visible = false;
       },
 
@@ -142,6 +180,12 @@
 
         var fade = D.fadeIn || 0;
         mat.opacity = fade > 0 ? clamp(t / fade, 0, 1) : 1;
+
+        if (shadow) {
+          // Gölge bahçeyle birlikte, biraz gecikmeli koyulaşır
+          var target = (D.shadow.opacity != null ? D.shadow.opacity : 0.26) * clamp((t - 0.4) / 1.6, 0, 1);
+          shadowMat.opacity += (target - shadowMat.opacity) * clamp(dt * 3, 0, 1);
+        }
 
         var i = Math.floor(t * A.fps);
         if (i >= A.count - 1) {
@@ -162,6 +206,7 @@
 
       dispose: function () {
         if (mesh) { mesh.geometry.dispose(); }
+        if (shadow) { shadow.geometry.dispose(); shadowMat.map.dispose(); shadowMat.dispose(); }
         if (mat) mat.dispose();
         if (tex) tex.dispose();
         ready = false;

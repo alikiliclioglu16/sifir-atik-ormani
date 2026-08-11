@@ -11,9 +11,10 @@
 
   <link rel="stylesheet" href="style.css" />
   <link rel="preload" as="image" href="assets/A01_poster.jpg" />
-  <link rel="preload" as="image" href="assets/A01_bee_atlas.png" />
-  <link rel="preload" as="image" href="assets/A01_growth_atlas.png" />
+  <link rel="preload" as="image" href="assets/A01_bee_atlas.webp" />
+  <link rel="preload" as="image" href="assets/A01_growth_atlas.webp" />
   <link rel="prefetch" as="fetch" href="assets/A01_ambient_loop.mp3" crossorigin />
+  <link rel="preload" as="image" href="assets/A01_logo.webp" />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
 </head>
@@ -69,9 +70,22 @@
       <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
     </div>
     <p id="hudStatus" class="hud-status" role="status" aria-live="polite">Kamera başlatılıyor…</p>
-    <button id="muteButton" class="mute hidden" type="button" aria-label="Sesi kapat">🔊</button>
     <button id="exitButton" class="exit" type="button" aria-label="AR deneyimini kapat">×</button>
+    <button id="muteButton" class="mute hidden" type="button" aria-label="Sesi kapat">🔊</button>
+
+    <!-- Canlı görüntüdeki soluk kurum logosu; fotoğrafa da bu öğe basılır
+         (ek ağ isteği olmaz). WebP + PNG yedeği tarayıcı tarafından seçilir. -->
+    <picture class="logo-wm">
+      <source srcset="assets/A01_logo.webp" type="image/webp">
+      <img id="logoImg" src="assets/A01_logo.png" alt="" crossorigin="anonymous" decoding="async">
+    </picture>
+
+    <button id="shotButton" class="shot hidden" type="button" aria-label="Fotoğraf çek">
+      <span aria-hidden="true">◉</span>
+    </button>
   </div>
+
+  <div id="flash" class="flash hidden" aria-hidden="true"></div>
 
   <!-- ============ HATA / BİLGİ PANELİ ============ -->
   <div id="errorPanel" class="error-panel hidden" role="alertdialog" aria-modal="true">
@@ -93,6 +107,7 @@
   <script src="bee-layer.js"></script>
   <script src="growth-layer.js"></script>
   <script src="audio-layer.js"></script>
+  <script src="capture-layer.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

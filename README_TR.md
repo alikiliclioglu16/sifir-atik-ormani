@@ -1,4 +1,4 @@
-# A01 — Kapak Çiçek Ağacı | WebAR (Sürüm 7.0.0)
+# A01 — Kapak Çiçek Ağacı | WebAR (Sürüm 8.0.0)
 
 Dünyanın Sıfır Atık Ormanı sergisi.
 **V1** ağaç canlanması + **V1.5** imza hayvanı (6 arı, polen) + **V2** Growth Halo (papercraft bahçe) + **Katman 6** ses.
@@ -16,6 +16,7 @@ Uygulama indirmeden iPhone Safari ve Android Chrome'da çalışır.
 ├── bee-layer.js          İMZA HAYVANI MOTORU — sprite, state machine, polen
 ├── growth-layer.js       GROWTH HALO MOTORU — tek atış atlas oynatıcı
 ├── audio-layer.js        SES MOTORU — Web Audio, kesintisiz loop, fade
+├── capture-layer.js      FOTOĞRAF MOTORU — kamera+AR+logo birleştirme
 ├── style.css
 ├── preview.html          AR'sız hizalama önizlemesi
 ├── vercel.json
@@ -23,8 +24,11 @@ Uygulama indirmeden iPhone Safari ve Android Chrome'da çalışır.
 └── assets/
     ├── targets.mind            önceden derlenmiş MindAR hedefi (V1)
     ├── A01_kling_12s_web.mp4   ağaç animasyonu (V1)
-    ├── A01_bee_atlas.png       arı sprite atlası (V1.5) — 3 klip × 20 kare
-    ├── A01_growth_atlas.png    growth sprite atlası (V2) — 45 kare @ 8 fps
+    ├── A01_bee_atlas.webp      arı sprite atlası (V1.5) — 3 klip × 20 kare
+    ├── A01_bee_atlas.png       ↑ WebP açılmazsa otomatik yedek
+    ├── A01_growth_atlas.webp   growth sprite atlası (V2) — 45 kare @ 8 fps
+    ├── A01_growth_atlas.png    ↑ WebP açılmazsa otomatik yedek
+    ├── A01_logo.webp           kurum logosu filigranı (+ .png yedeği)
     ├── A01_ambient_loop.mp3     ambient ses (loop, 18.20 sn)
     ├── A01_bee_wings_loop.mp3   arı kanat sesi (loop, 4.00 sn)
     ├── A01_growth_reveal.mp3    büyüme sesi (tek atış, 6.00 sn)
@@ -95,7 +99,9 @@ başına kullanmaya devam eder → mevcut çalışan V1 deneyimi için sıfır r
    5–8 sn çiçeklerde hover · 8.6 sn ilk polen düşer ve **bahçe büyümeye başlar** ·
    ~14.2 sn final papercraft bahçe eserin alt kenarından taşarak tamamlanır.
 6. Ses: targetFound → ambient · 1.6 sn arı kanat sesi · 8.6 sn büyüme sesi.
-   Sağ üstteki 🔊 düğmesiyle sesi kapatabilirsiniz.
+   Sol üstteki 🔊 düğmesiyle sesi kapatabilirsiniz.
+7. Alt ortadaki **◉** düğmesiyle fotoğraf çekilir; kurum logosu sağ üst köşeye
+   soluk biçimde basılır ve paylaşım sayfası açılır.
 
 Sorun olursa adresin sonuna `?debug=1` ekleyin; alt kısımda teknik günlük çıkar.
 
@@ -136,6 +142,31 @@ Sorun olursa adresin sonuna `?debug=1` ekleyin; alt kısımda teknik günlük ç
   `resume()` + sessiz buffer ile unlock edilir (iOS Safari kuralı).
 - Sesler **arka planda** indirilir; AR başlatmayı bloklamaz.
 - Ses tamamen başarısız olsa bile V1 + V1.5 + V2 görsel deneyimi etkilenmez.
+
+## Derinlik ve fotoğraf (v8)
+
+- **Arı gölgeleri:** her arının eser düzlemine düşen yumuşak gölgesi vardır;
+  arı uzaklaştıkça gölge büyür, yumuşar ve kayar. Geometri/materyal altı arı
+  arasında paylaşılır.
+- **Gerçek parallax:** arıların z aralığı 0.020–0.200'e, Growth Halo düzlemi
+  z=0.160'a alındı ve 20° geriye yatırıldı. Telefon hareket ettikçe katmanlar
+  esere göre gerçek perspektifle kayar.
+- **Fotoğraf:** kamera görüntüsü + AR katmanları + logo tek karede birleşir.
+  WebGL canvas'ı A-Frame'in `tock` kancasında (render'dan hemen sonra) okunur,
+  bu yüzden `preserveDrawingBuffer` gerekmez. Çıktı JPEG, paylaşım varsa
+  sistem paylaşım sayfası, yoksa indirme.
+
+## Optimizasyon (v8)
+
+| | Önce | Sonra |
+|---|---|---|
+| Arı atlası | 1.26 MB PNG | 0.41 MB WebP |
+| Growth atlası | 1.89 MB PNG | 0.56 MB WebP |
+| Ambient + kanat sesi | 511 KB stereo | 348 KB mono 128k |
+| **Toplam sayfa yükü** | **10.5 MB** | **8.1 MB** |
+
+`A01_growth_reveal.mp3` bilinçli olarak dokunulmadan bırakıldı: transient
+yoğun bir ses, mono 96k'da SNR 12.8 dB'ye düşüyordu, kazanç ise 47 KB.
 
 ## Henüz yapılmayanlar
 

@@ -62,6 +62,21 @@
     return out;
   }
 
+  /* --------------------------------------------------------------- GÖLGE  */
+
+  // Arıların eser düzlemine düşen yumuşak gölgesi. Derinlik hissini belirgin
+  // biçimde artırır: arılar artık esere yapışmış değil, ÖNÜNDE uçuyor görünür.
+  function shadowTexture(THREE) {
+    var c = document.createElement('canvas'); c.width = c.height = 64;
+    var g = c.getContext('2d');
+    var rad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+    rad.addColorStop(0.00, 'rgba(0,0,0,0.85)');
+    rad.addColorStop(0.45, 'rgba(0,0,0,0.40)');
+    rad.addColorStop(1.00, 'rgba(0,0,0,0)');
+    g.fillStyle = rad; g.fillRect(0, 0, 64, 64);
+    var t = new THREE.Texture(c); t.needsUpdate = true; return t;
+  }
+
   /* ------------------------------------------------------------ POLEN SİSTEMİ */
 
   function createPollen(THREE, cfg, parent) {
@@ -201,6 +216,19 @@
     /* ---------- arı oluşturma ---------- */
     function buildBees() {
       var geo = new THREE.PlaneGeometry(1, 1);
+      var SH = A.shadow || {};
+      var shadowMat = null, shadowGeo = null;
+      if (SH.enabled) {
+        shadowGeo = new THREE.PlaneGeometry(1, 1);
+        shadowMat = new THREE.MeshBasicMaterial({
+          map: shadowTexture(THREE),
+          color: new THREE.Color(SH.color != null ? SH.color : 0x0d2a1c),
+          transparent: true,
+          opacity: SH.opacity != null ? SH.opacity : 0.30,
+          depthWrite: false,
+          toneMapped: false
+        });
+      }
       for (var i = 0; i < Math.min(A.count, A.routes.length); i++) {
         var route = A.routes[i];
         var tex = baseTexture.clone();
@@ -221,11 +249,20 @@
         mesh.frustumCulled = false;
         group.add(mesh);
 
+        var shadow = null;
+        if (shadowMat) {
+          shadow = new THREE.Mesh(shadowGeo, shadowMat);   // geometri+materyal PAYLAŞILIR
+          shadow.renderOrder = 6;                          // ağaç videosunun üstünde, bahçenin altında
+          shadow.frustumCulled = false;
+          shadow.visible = false;
+          group.add(shadow);
+        }
+
         bees.push({
           id: route.id,
           route: route,
           plan: buildPlan(route),
-          mesh: mesh, mat: mat, tex: tex,
+          mesh: mesh, mat: mat, tex: tex, shadow: shadow,
           size: A.baseScale * (route.scale || 1),
           state: 'wait', t: 0, legIdx: 0, legT: 0,
           timer: route.delay || 0,
@@ -395,6 +432,23 @@
       var tilt = clamp(dy * 6.0, -0.30, 0.30) * (mirror > 0 ? 1 : -1);
       b.mesh.rotation.z = lerp(b.mesh.rotation.z, tilt + b.roll, 0.18);
       setFrame(b);
+
+      // Gölge: arı düzlemden uzaklaştıkça büyür, yumuşar ve kayar
+      if (b.shadow) {
+        var SH = A.shadow;
+        var vis = b.mesh.visible;
+        if (b.shadow.visible !== vis) b.shadow.visible = vis;
+        if (vis) {
+          var d = Math.max(0, b.pos.z - A.zNear);
+          b.shadow.position.set(
+            b.pos.x + d * (SH.offsetX != null ? SH.offsetX : 0.30),
+            b.pos.y - d * (SH.offsetY != null ? SH.offsetY : 0.42),
+            0.004
+          );
+          var s = b.size * ((SH.scale != null ? SH.scale : 0.85) + d * (SH.spread != null ? SH.spread : 2.2));
+          b.shadow.scale.set(s, s * 0.62, 1);
+        }
+      }
     }
 
     /* ------------------------------------------------------------- PUBLIC API */
@@ -402,9 +456,22 @@
       object3D: group,
 
       load: function (onReady, onError) {
-        new THREE.TextureLoader().load(
-          atlas.src,
-          function (t) {
+        var loader = new THREE.TextureLoader();
+        var tried = false;
+        function fallbackOrFail(e) {
+          if (!tried && atlas.fallback) {
+            tried = true;
+            log('Arı atlası (' + atlas.src + ') açılamadı, PNG yedeğine geçiliyor');
+            loader.load(atlas.fallback, onTex, undefined, function () {
+              log('Arı atlası YÜKLENEMEDİ (yedek de başarısız)');
+              if (onError) onError(e);
+            });
+          } else {
+            log('Arı atlası YÜKLENEMEDİ: ' + atlas.src);
+            if (onError) onError(e);
+          }
+        }
+        function onTex(t) {
             if ('colorSpace' in t && THREE.SRGBColorSpace) t.colorSpace = THREE.SRGBColorSpace;
             else if ('encoding' in t && THREE.sRGBEncoding) t.encoding = THREE.sRGBEncoding;
             t.premultiplyAlpha = false;      // RGB zaten premultiplied; tekrar çarpma
@@ -417,10 +484,8 @@
             buildBees();
             log('Arı atlası yüklendi: ' + atlas.cols + 'x' + atlas.rows + ' hücre');
             if (onReady) onReady();
-          },
-          undefined,
-          function (e) { log('Arı atlası YÜKLENEMEDİ: ' + atlas.src); if (onError) onError(e); }
-        );
+        }
+        loader.load(atlas.src, onTex, undefined, fallbackOrFail);
       },
 
       /* targetFound: her şey 0'dan, kalıntı bırakmadan */
@@ -438,6 +503,7 @@
           b.prev.copy(b.pos);
           b.mesh.visible = false;
           b.mesh.rotation.z = 0;
+          if (b.shadow) b.shadow.visible = false;
           setFrame(b);
         }
         if (pollen) pollen.reset();
@@ -472,6 +538,7 @@
           bees[i].mesh.geometry.dispose();
           bees[i].mat.dispose();
           bees[i].tex.dispose();
+          if (bees[i].shadow) { bees[i].shadow.geometry.dispose(); bees[i].shadow.material.dispose(); }
         }
         if (pollen) pollen.dispose();
         if (baseTexture) baseTexture.dispose();
