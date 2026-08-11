@@ -232,6 +232,22 @@ h1 {
   backdrop-filter: blur(8px);
 }
 
+.mute {
+  pointer-events: auto;
+  position: absolute;
+  top: calc(14px + env(safe-area-inset-top));
+  right: 66px;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  font-size: 19px;
+  line-height: 44px;
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
 .exit {
   pointer-events: auto;
   position: absolute;

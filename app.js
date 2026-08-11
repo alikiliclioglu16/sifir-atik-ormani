@@ -1,6 +1,6 @@
 /* =============================================================================
    SIFIR ATIK ORMANI — A01 "Kapak Çiçek Ağacı" WebAR
-   Sürüm: 6.0.0  (production) — V1 ağaç + V1.5 imza hayvanı (arı) + V2 Growth Halo
+   Sürüm: 7.0.0  (production) — V1 ağaç + V1.5 arı + V2 Growth Halo + Katman 6 ses
 
    Mimari kararlar:
    - Runtime MindAR Compiler KULLANILMAZ. Önceden derlenmiş assets/targets.mind okunur.
@@ -17,6 +17,10 @@
    - V2 Growth Halo katmanı da modülerdir: growth-layer.js. İlk geçerli
      pollenDrop event'iyle BİR KEZ başlar. Atlası yüklenemezse V1 + V1.5
      aynen çalışmaya devam eder.
+   - Katman 6 ses modülerdir: audio-layer.js (Web Audio). AudioContext, kullanıcı
+     'AR'yi Başlat'a bastığı anda SENKRON olarak unlock edilir. Sesler arka
+     planda indirilir ve AR başlatmayı bloklamaz. Ses tamamen başarısız olsa
+     bile V1 + V1.5 + V2 görsel deneyimi etkilenmez.
    ============================================================================= */
 
 (function () {
@@ -25,7 +29,7 @@
   /* ---------------------------------------------------------------- AYARLAR */
 
   var CFG = {
-    version: '6.0.0',
+    version: '7.0.0',
     treeId: 'A01',
 
     // Kütüphaneler — sırayla denenir, ilki başarısız olursa ikincisi yüklenir.
@@ -75,6 +79,7 @@
     errorRetry: $('errorRetry'),
     errorDetailsToggle: $('errorDetailsToggle'),
     errorDetails: $('errorDetails'),
+    muteButton: $('muteButton'),
     debugPanel: $('debugPanel')
   };
 
@@ -98,6 +103,7 @@
   var beeReady = null;      // atlas yükleme Promise'i (bileşen init'inde kurulur)
   var growthLayer = null;   // V2 Growth Halo katmanı (yoksa null)
   var growthReady = null;   // growth atlası yükleme Promise'i
+  var audioLayer = null;    // Katman 6 ses (yoksa null)
   var readyTimer = null;
   var slowTimer = null;
 
@@ -136,7 +142,10 @@
       'bee-layer: ' + (window.A01BeeLayer ? 'v' + window.A01BeeLayer.version : 'YOK'),
       'beeLayer aktif: ' + (beeLayer && beeLayer.isReady() ? 'evet' : 'hayır'),
       'growth-layer: ' + (window.A01GrowthLayer ? 'v' + window.A01GrowthLayer.version : 'YOK'),
-      'growthLayer aktif: ' + (growthLayer && growthLayer.isReady() ? 'evet' : 'hayır')
+      'growthLayer aktif: ' + (growthLayer && growthLayer.isReady() ? 'evet' : 'hayır'),
+      'audio-layer: ' + (window.A01AudioLayer ? 'v' + window.A01AudioLayer.version : 'YOK'),
+      'audio: ' + (audioLayer ? (audioLayer.isReady() ? 'hazır' : 'yükleniyor') +
+        '/' + (audioLayer.isUnlocked() ? 'açık' : 'kilitli') + '/' + audioLayer.state() : 'yok')
     ].join('\n');
   }
 
@@ -310,6 +319,10 @@
             beeLayer = window.A01BeeLayer.create(THREE, treeCfg, this.el.object3D, {
               el: this.el,
               log: log,
+              onBeesEnter: function () {
+                // Bee wings sesi mevcut V1.5 timeline'ını TAKİP eder; timing değişmez
+                if (audioLayer) audioLayer.startBee();
+              },
               onPollenDrop: function (d) {
                 /* ---- V2 TETİKLEYİCİ ----
                    Growth animasyonu YALNIZCA ilk geçerli pollenDrop ile başlar.
@@ -317,6 +330,11 @@
                    kendi `started` bayrağında da olmak üzere İKİ KEZ engellenir. */
                 if (growthLayer && !growthLayer.isStarted()) {
                   growthLayer.start('pollenDrop:' + d.bee);
+                  if (audioLayer) audioLayer.playGrowth();   // görsel ile AYNI an
+                } else if (!growthLayer && audioLayer) {
+                  // Growth atlası yüklenememişse bile ses tetiklenir (kendi
+                  // one-shot koruması var), deneyim tamamen sessiz kalmasın
+                  audioLayer.playGrowth();
                 } else {
                   log('pollenDrop ' + d.bee + ' — growth zaten başlamış, yok sayıldı');
                 }
@@ -384,6 +402,7 @@
           if (beeLayer && beeLayer.isReady()) beeLayer.restart();
           // V2 temiz başlangıç state'i: görünmez, 0. karede bekler
           if (growthLayer) growthLayer.reset();
+          if (audioLayer) { audioLayer.reset(); audioLayer.startAmbient(); }
 
           try { video.currentTime = 0; } catch (e) { log('currentTime=0 hatası: ' + e); }
 
@@ -414,6 +433,7 @@
           // V1.5 katmanı da durur ve gizlenir; timer/animasyon birikmez
           if (beeLayer) beeLayer.stop();
           if (growthLayer) growthLayer.stop();   // durdur + gizle + growthStarted=false
+          if (audioLayer) audioLayer.stopAll();  // fade-out + playhead sıfırla
           if (!state.needsTapToPlay) setHud('A01 ağacını tekrar kadraja alın…');
         });
       },
@@ -436,6 +456,7 @@
       remove: function () {
         if (beeLayer) { beeLayer.dispose(); beeLayer = null; }
         if (growthLayer) { growthLayer.dispose(); growthLayer = null; }
+        if (audioLayer) { audioLayer.dispose(); audioLayer = null; }
         if (this.tex) this.tex.dispose();
         if (this.mesh) {
           this.mesh.geometry.dispose();
@@ -563,8 +584,10 @@
   function startAR() {
     if (state.arStarted || !state.libsReady || !state.sceneReady) return;
 
-    // 1) Video kilidini AÇ — her şeyden önce, senkron.
+    // 1) Video ve SES kilidini AÇ — her şeyden önce, senkron.
+    //    iOS Safari her ikisini de yalnızca gesture context'i içinde açar.
     unlockVideo();
+    if (audioLayer) audioLayer.unlock();
 
     // 2) Ortam kontrolü
     if (!hasGetUserMedia()) {
@@ -613,10 +636,12 @@
     if (!state.arReady || !arSystem) return;
     try {
       if (document.hidden) {
+        if (audioLayer) audioLayer.suspend();
         dom.video.pause();
         arSystem.pause(true); // kamerayı açık tut, sadece işlemeyi durdur
         log('Sekme arka planda — işleme duraklatıldı');
       } else {
+        if (audioLayer) audioLayer.resumeCtx();
         arSystem.unpause();
         log('Sekme öne geldi — işleme sürdürüldü');
       }
@@ -631,6 +656,15 @@
   /* ------------------------------------------------------------- ARAYÜZ    */
 
   dom.startButton.addEventListener('click', startAR);
+
+  if (dom.muteButton) {
+    dom.muteButton.addEventListener('click', function () {
+      if (!audioLayer) return;
+      var m = audioLayer.setMuted(!audioLayer.isMuted());
+      this.textContent = m ? '🔇' : '🔊';
+      this.setAttribute('aria-label', m ? 'Sesi aç' : 'Sesi kapat');
+    });
+  }
 
   dom.exitButton.addEventListener('click', function () {
     try { dom.video.pause(); } catch (e) {}
@@ -663,6 +697,21 @@
       setLaunchStatus('Uygulama içi tarayıcı algılandı — Safari/Chrome önerilir');
       log('UYARI: uygulama içi tarayıcı');
     }
+
+    /* --- Katman 6: ses. Erken kurulur, indirme ARKA PLANDA yapılır.
+       Görev tanımı §8: AR tracking'i bloklamaz. --- */
+    var tcfg = window.TREE_CONFIG && window.TREE_CONFIG[CFG.treeId];
+    if (window.A01AudioLayer && tcfg && tcfg.audio && tcfg.audio.implemented) {
+      audioLayer = window.A01AudioLayer.create(tcfg.audio, { log: log });
+      if (audioLayer) {
+        audioLayer.load().catch(function (e) {
+          log('Ses yüklenemedi, sessiz devam: ' + (e && e.message ? e.message : e));
+        });
+      }
+    } else {
+      log('Ses katmanı yok veya implemented=false — sessiz devam');
+    }
+    if (dom.muteButton) dom.muteButton.classList.toggle('hidden', !audioLayer);
 
     setLaunchStatus('AR hedefi kontrol ediliyor…');
 

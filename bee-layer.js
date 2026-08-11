@@ -169,6 +169,7 @@
     var bees = [];
     var active = false;
     var elapsed = 0;
+    var enterFired = false;   // ses katmanı için: ilk arı sahneye girdi mi
     var _v = new THREE.Vector3();
     var _v2 = new THREE.Vector3();
 
@@ -268,7 +269,16 @@
         case 'wait':                                  // giriş gecikmesi
           b.timer -= dt;
           b.mesh.visible = false;
-          if (b.timer <= 0) { b.state = 'fly'; b.mesh.visible = true; }
+          if (b.timer <= 0) {
+            b.state = 'fly'; b.mesh.visible = true;
+            // İlk arı sahneye girdiğinde bir kez haber ver (ses katmanı senkronu).
+            // Bee timeline'ına HİÇBİR etkisi yoktur, sadece bildirimdir.
+            if (!enterFired) {
+              enterFired = true;
+              log('ilk arı sahneye girdi (t=' + elapsed.toFixed(2) + ' sn)');
+              if (typeof opts.onBeesEnter === 'function') { try { opts.onBeesEnter(); } catch (e) {} }
+            }
+          }
           return;
 
         case 'fly': {                                 // FLY / APPROACH FLOWER
@@ -416,6 +426,7 @@
       /* targetFound: her şey 0'dan, kalıntı bırakmadan */
       restart: function () {
         elapsed = 0;
+        enterFired = false;
         for (var i = 0; i < bees.length; i++) {
           var b = bees[i];
           b.state = 'wait';

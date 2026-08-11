@@ -206,12 +206,43 @@
         hold: true,          // son karede tutulur, loop yok
         widthFactor: 1.45
       },
+      /* ------------------------- KATMAN 6 — SES (standart §13) --------------
+         Motor (audio-layer.js) ağaca özel hiçbir yol/değer içermez; hepsi burada.
+         `duration` alanı DÖNGÜ İÇİN ZORUNLUDUR: tarayıcı MP3 decoder'ları
+         encoder padding'ini tutarsız kırptığı için döngü sonu nominal süreden
+         hesaplanır, buffer.duration'dan değil. Ölçülen gerçek süreler:
+         ambient 18.200 sn · bee 4.000 sn · growth 6.000 sn. */
       audio: {
-        /* V2 için ayrılmış alan. Henüz uygulanmadı (standart §13). */
-        ambient: null,
-        wing: null,
-        growth: null,
-        implemented: false
+        implemented: true,
+        masterVolume: 1.0,
+
+        ambient: {
+          asset: 'assets/A01_ambient_loop.mp3',
+          volume: 0.75,
+          loop: true,
+          duration: 18.20,
+          fadeIn: 0.60,
+          fadeOut: 0.30,
+          trigger: 'targetFound'
+        },
+        bee: {
+          asset: 'assets/A01_bee_wings_loop.mp3',
+          volume: 0.65,
+          loop: true,
+          duration: 4.00,
+          fadeIn: 0.45,
+          fadeOut: 0.30,
+          trigger: 'bees-enter'      // bee-layer ilk arı sahneye girince tetikler
+        },
+        growth: {
+          asset: 'assets/A01_growth_reveal.mp3',
+          volume: 0.80,
+          loop: false,
+          duration: 6.00,
+          fadeIn: 0.05,
+          fadeOut: 0.15,
+          trigger: 'first-pollen-drop'   // Growth Halo ile AYNI callback
+        }
       }
     }
 

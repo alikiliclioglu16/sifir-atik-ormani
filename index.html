@@ -13,6 +13,7 @@
   <link rel="preload" as="image" href="assets/A01_poster.jpg" />
   <link rel="preload" as="image" href="assets/A01_bee_atlas.png" />
   <link rel="preload" as="image" href="assets/A01_growth_atlas.png" />
+  <link rel="prefetch" as="fetch" href="assets/A01_ambient_loop.mp3" crossorigin />
   <link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin />
   <link rel="dns-prefetch" href="https://cdn.jsdelivr.net" />
 </head>
@@ -68,6 +69,7 @@
       <i class="tl"></i><i class="tr"></i><i class="bl"></i><i class="br"></i>
     </div>
     <p id="hudStatus" class="hud-status" role="status" aria-live="polite">Kamera başlatılıyor…</p>
+    <button id="muteButton" class="mute hidden" type="button" aria-label="Sesi kapat">🔊</button>
     <button id="exitButton" class="exit" type="button" aria-label="AR deneyimini kapat">×</button>
   </div>
 
@@ -90,6 +92,7 @@
   <script src="tree-config.js"></script>
   <script src="bee-layer.js"></script>
   <script src="growth-layer.js"></script>
+  <script src="audio-layer.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
