@@ -32,7 +32,7 @@ Uygulama indirmeden iPhone Safari ve Android Chrome'da çalışır.
 
 | Dosya | Ne zaman değişir |
 |---|---|
-| `assets/A01_kling_12s_web.mp4` | Filigransız final Kling export geldiğinde |
+| `assets/A01_kling_12s_web.mp4` | ✅ Filigransız final export entegre edildi (11 Ağustos 2026) |
 | `assets/targets.mind` | Nihai fiziksel eser fotoğrafı derlendiğinde |
 | `assets/A01_bee_atlas.png` | Yeni arı klipleri geldiğinde (aynı 10×6 / 192px düzen) |
 | `assets/A01_growth_atlas.png` | Yeni growth klibi geldiğinde (aynı 7×7 / 336×192 düzen) |
