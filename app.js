@@ -1,6 +1,6 @@
 /* =============================================================================
    SIFIR ATIK ORMANI — A01 "Kapak Çiçek Ağacı" WebAR
-   Sürüm: 4.0.0  (production)
+   Sürüm: 5.0.0  (production) — V1 ağaç katmanı + V1.5 imza hayvanı (arı) katmanı
 
    Mimari kararlar:
    - Runtime MindAR Compiler KULLANILMAZ. Önceden derlenmiş assets/targets.mind okunur.
@@ -11,6 +11,9 @@
    - Video dokusu A-Frame material sistemi yerine doğrudan THREE.VideoTexture ile
      kurulur; böylece three.js sürüm farkları (encoding/colorSpace) sorun çıkarmaz.
    - Her aşamada watchdog + Türkçe hata paneli vardır; sessiz sonsuz yükleme olmaz.
+   - V1.5 arı katmanı MODÜLERDİR: tree-config.js (veri) + bee-layer.js (motor).
+     Arı atlası yüklenemezse katman sessizce devre dışı kalır ve V1 ağaç
+     deneyimi hiç etkilenmeden çalışmaya devam eder (regresyon koruması).
    ============================================================================= */
 
 (function () {
@@ -19,7 +22,8 @@
   /* ---------------------------------------------------------------- AYARLAR */
 
   var CFG = {
-    version: '4.0.0',
+    version: '5.0.0',
+    treeId: 'A01',
 
     // Kütüphaneler — sırayla denenir, ilki başarısız olursa ikincisi yüklenir.
     aframeUrls: [
@@ -87,6 +91,8 @@
 
   var sceneEl = null;
   var arSystem = null;
+  var beeLayer = null;      // V1.5 imza hayvanı katmanı (yoksa null)
+  var beeReady = null;      // atlas yükleme Promise'i (bileşen init'inde kurulur)
   var readyTimer = null;
   var slowTimer = null;
 
@@ -120,7 +126,10 @@
       'video.readyState: ' + (v ? v.readyState : '-'),
       'video.unlocked: ' + state.videoUnlocked,
       'AFRAME: ' + (window.AFRAME ? window.AFRAME.version : 'yüklenmedi'),
-      'MINDAR: ' + (window.MINDAR && window.MINDAR.IMAGE ? 'yüklendi' : 'yüklenmedi')
+      'MINDAR: ' + (window.MINDAR && window.MINDAR.IMAGE ? 'yüklendi' : 'yüklenmedi'),
+      'tree-config: ' + (window.TREE_CONFIG ? 'v' + window.TREE_CONFIG_VERSION : 'YOK'),
+      'bee-layer: ' + (window.A01BeeLayer ? 'v' + window.A01BeeLayer.version : 'YOK'),
+      'beeLayer aktif: ' + (beeLayer && beeLayer.isReady() ? 'evet' : 'hayır')
     ].join('\n');
   }
 
@@ -285,11 +294,47 @@
 
         log('Video düzlemi kuruldu: ' + CFG.planeWidth + ' x ' + CFG.planeHeight.toFixed(3));
 
+        /* ---- V1.5: imza hayvanı (arı) katmanı ----
+           Target entity'sinin object3D'sine çocuk olarak eklenir; böylece
+           tüm koordinatlar target'a bağlıdır (görev tanımı §6). */
+        var treeCfg = window.TREE_CONFIG && window.TREE_CONFIG[CFG.treeId];
+        if (window.A01BeeLayer && treeCfg && treeCfg.animal) {
+          try {
+            beeLayer = window.A01BeeLayer.create(THREE, treeCfg, this.el.object3D, {
+              el: this.el,
+              log: log,
+              onPollenDrop: function (d) { log('V2 kancası hazır → ' + d.bee); }
+            });
+            // Atlas yüklemesi burada başlar; boot zinciri beeReady'yi bekler.
+            // Böylece bileşenin ne zaman init olduğuna bağımlılık kalmaz.
+            beeReady = new Promise(function (res) {
+              var done = false;
+              var to = setTimeout(function () {
+                if (done) return; done = true;
+                log('Arı atlası zaman aşımı — V1 ağaç deneyimi ile devam');
+                beeLayer = null; res();
+              }, 20000);
+              beeLayer.load(
+                function () { if (!done) { done = true; clearTimeout(to); res(); } },
+                function () { if (!done) { done = true; clearTimeout(to); beeLayer = null; res(); } }
+              );
+            });
+          } catch (e) {
+            beeLayer = null;
+            log('Arı katmanı kurulamadı, V1 devam ediyor: ' + e.message);
+          }
+        } else {
+          log('Arı katmanı yok (tree-config veya bee-layer yüklenmedi) — V1 devam ediyor');
+        }
+
         /* ---- HEDEF BULUNDU ---- */
         this.el.addEventListener('targetFound', function () {
           state.targetVisible = true;
           log('targetFound');
           setHud('Ağaç canlanıyor…');
+
+          // V1.5 katmanı sıfırdan başlar; önceki state/timer kalıntısı kalmaz
+          if (beeLayer && beeLayer.isReady()) beeLayer.restart();
 
           try { video.currentTime = 0; } catch (e) { log('currentTime=0 hatası: ' + e); }
 
@@ -317,19 +362,25 @@
           log('targetLost');
           try { video.pause(); } catch (e) {}
           self.mesh.visible = false;
+          // V1.5 katmanı da durur ve gizlenir; timer/animasyon birikmez
+          if (beeLayer) beeLayer.stop();
           if (!state.needsTapToPlay) setHud('A01 ağacını tekrar kadraja alın…');
         });
       },
 
-      tick: function () {
+      tick: function (time, timeDelta) {
         // Video henüz kare üretmediyse düzlemi gizli tut; hazır olunca göster.
-        if (!this.mesh) return;
-        var ready = this.video.readyState >= 2; // HAVE_CURRENT_DATA
-        var shouldShow = ready && state.targetVisible;
-        if (this.mesh.visible !== shouldShow) this.mesh.visible = shouldShow;
+        if (this.mesh) {
+          var ready = this.video.readyState >= 2; // HAVE_CURRENT_DATA
+          var shouldShow = ready && state.targetVisible;
+          if (this.mesh.visible !== shouldShow) this.mesh.visible = shouldShow;
+        }
+        // V1.5 arı katmanı yalnızca target görünürken ilerler
+        if (beeLayer && state.targetVisible) beeLayer.update((timeDelta || 16.7) / 1000);
       },
 
       remove: function () {
+        if (beeLayer) { beeLayer.dispose(); beeLayer = null; }
         if (this.tex) this.tex.dispose();
         if (this.mesh) {
           this.mesh.geometry.dispose();
@@ -578,6 +629,13 @@
         setLaunchStatus('AR sahnesi hazırlanıyor…');
         registerComponents();
         return buildScene();
+      })
+      .then(function () {
+        // Arı atlası bileşen init'inde yüklenmeye başladı; burada tamamlanmasını
+        // bekliyoruz. Başarısız olursa beeLayer null'lanır ve V1 aynen devam eder.
+        if (!beeReady) return;
+        setLaunchStatus('Arı katmanı yükleniyor…');
+        return beeReady;
       })
       .then(function () {
         // Videoyu arka planda ön belleğe almaya çalış
